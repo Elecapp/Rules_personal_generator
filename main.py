@@ -16,11 +16,12 @@ from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, classifica
 
 from sklearn.compose import make_column_selector as selector
 import random
-from lore_sa.dataset import TabularDataset
-from lore_sa.bbox import sklearn_classifier_bbox
+from lore_sa.dataset import TabularDataset, Dataset
+from lore_sa.bbox import sklearn_classifier_bbox, AbstractBBox
+from lore_sa.neighgen.neighborhood_generator import NeighborhoodGenerator
 from lore_sa.surrogate import DecisionTreeSurrogate
-from lore_sa.encoder_decoder import EncDec
-from lore_sa.lore import TabularRandomGeneratorLore
+from lore_sa.encoder_decoder import EncDec, ColumnTransformerEnc
+from lore_sa.lore import TabularRandomGeneratorLore, Lore
 
 
 class IdentityEncoder(EncDec):
@@ -52,11 +53,15 @@ class IdentityEncoder(EncDec):
     def decode_target_class(self, x: np.array):
         return x
 
-class NewGen:
-    def __init__(self):
-        self.gen_data = None
 
-    def perturb(self, x, num_instances):
+
+class ProbabilitiesWeightBasedGenerator(NeighborhoodGenerator):
+
+    def __init__(self, bbox: AbstractBBox, dataset:Dataset, encoder:EncDec, ocr=0.1):
+        super().__init__(bbox, dataset, encoder, ocr)
+
+    def generate(self, x: np.array, num_instances: int, descriptor: dict, encoder):
+
         perturbed_arrays = []
 
         choices = [0, 1, 2, 3, 4]
@@ -91,8 +96,16 @@ class NewGen:
             perturbed_arr[8] = random.choice(range(7, 148, 7))
 
             perturbed_arrays.append(perturbed_arr)
-        self.gen_data = perturbed_arrays
+
+        # save to png
         return np.array(perturbed_arrays)
+
+    def check_generated(self, filter_function=None, check_fuction=None):
+        pass
+
+
+
+
 
 
 
@@ -150,11 +163,16 @@ def new_lore():
     print(prediction)
     bbox = sklearn_classifier_bbox.sklearnBBox(model)
     data = TabularDataset(data=res, class_name='Class_label')
-    x = data.df.iloc[5,:-1].values
+    x = data.df.iloc[355, :-1].values
     print(x)
-    lore = TabularRandomGeneratorLore(bbox, data)
+    lore = TabularRandomGeneratorLore(bbox,data)
+    encoder = ColumnTransformerEnc(data.descriptor)
+    surrogate = DecisionTreeSurrogate()
+    generator = ProbabilitiesWeightBasedGenerator(bbox, data, encoder)
+    proba_lore = Lore(bbox, data, encoder, generator,surrogate)
+
     print(data.descriptor)
-    rule = lore.explain(x)
+    rule = proba_lore.explain(x)
     print(rule)
     print('-----')
     print(rule['rule'])
@@ -163,6 +181,11 @@ def new_lore():
         print(cr)
         print('-----')
 
+
+    #for i in range(nrows):
+    #    rl = proba_lore.explain(data.df.iloc[i, :-1].values)
+    #    if len(rl['counterfactuals']) > 0:
+    #        print(i)
 
 
 
@@ -215,9 +238,6 @@ def generate_neigh_from_instance():
     x_n = neighbourhood_class[5,:-1]
     #rule = surrogate.get_rule(x_n, neighbourhood_class)
     #print(rule)
-
-
-
 '''
 
 
