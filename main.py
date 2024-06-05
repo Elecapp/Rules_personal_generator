@@ -5,7 +5,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import OrdinalEncoder, FunctionTransformer, LabelEncoder
 # from sklearn import metrics
-from xailib.data_loaders.dataframe_loader import prepare_dataframe
+
 
 from sklearn.preprocessing import StandardScaler
 from sklearn.compose import ColumnTransformer
@@ -149,14 +149,19 @@ def new_lore():
 
     print(prediction)
     bbox = sklearn_classifier_bbox.sklearnBBox(model)
-    data = TabularDataset(data=res,class_name='Class_label')
+    data = TabularDataset(data=res, class_name='Class_label')
     x = data.df.iloc[5,:-1].values
     print(x)
     lore = TabularRandomGeneratorLore(bbox, data)
     print(data.descriptor)
     rule = lore.explain(x)
     print(rule)
-
+    print('-----')
+    print(rule['rule'])
+    print('-----')
+    for cr in rule['counterfactuals']:
+        print(cr)
+        print('-----')
 
 
 
@@ -209,6 +214,7 @@ def generate_neigh_from_instance():
     x_n = neighbourhood_class[5,:-1]
     #rule = surrogate.get_rule(x_n, neighbourhood_class)
     #print(rule)
+
 
 
 
