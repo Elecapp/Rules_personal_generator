@@ -168,6 +168,7 @@ def new_lore():
 
 
 
+'''
 def generate_neigh_from_instance():
     res = load_data_from_csv()
     model = create_and_train_model(res)
@@ -217,7 +218,7 @@ def generate_neigh_from_instance():
 
 
 
-
+'''
 
 
 
