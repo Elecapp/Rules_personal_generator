@@ -61,8 +61,11 @@ class ProbabilitiesWeightBasedGenerator(NeighborhoodGenerator):
     def __init__(self, bbox: AbstractBBox, dataset: Dataset, encoder: EncDec, ocr=0.1):
         super().__init__(bbox, dataset, encoder, ocr)
         self.neighborhood = None
+        self.preprocess = bbox.bbox.named_steps.get('columntransformer')
 
-    def generate(self, x: np.array, num_instances: int, descriptor: dict, encoder):
+    def generate(self, z: np.array, num_instances: int, descriptor: dict, encoder):
+        x = encoder.decode(z.reshape(1, -1))[0]
+        z1 = self.preprocess.transform(x.reshape(1, -1))[0]
 
         perturbed_arrays = []
 
@@ -86,7 +89,7 @@ class ProbabilitiesWeightBasedGenerator(NeighborhoodGenerator):
         ]
 
         for _ in range(num_instances):
-            perturbed_arr = x.copy()
+            perturbed_arr = z1.copy()
 
             for val in range(0, 3):  # covid
                 perturbed_arr[val] = random.choices(choices, weights=covid_weights[val])[0]
@@ -97,7 +100,13 @@ class ProbabilitiesWeightBasedGenerator(NeighborhoodGenerator):
             perturbed_arr[7] = random.choice(range(42, 442, 7))
             perturbed_arr[8] = random.choice(range(7, 148, 7))
 
-            perturbed_arrays.append(perturbed_arr)
+            covid_sec = [f"c{int(v)}" for v in perturbed_arr[0:3]]
+            mob_sec = [f"m{int(v)}" for v in perturbed_arr[3:7]]
+            tot = [*covid_sec, *mob_sec, perturbed_arr[7], perturbed_arr[8]]
+
+            dec = encoder.encode([tot])[0]
+
+            perturbed_arrays.append(dec)
 
         # save to png
         self.neighborhood = np.array(perturbed_arrays)
@@ -164,18 +173,7 @@ def compute_statistics_distance():
     data = TabularDataset(data=res, class_name='Class_label')
     x = data.df.iloc[355, :-1].values
     encoder = ColumnTransformerEnc(data.descriptor)
-
-
-    # We transform the input data for an OrdinalEncoder, as used in the model.
-    X_feat = res.loc[:, 'Week5_Covid':'Duration']
-    data_transf = model.named_steps.get('columntransformer').transform(X_feat)
-    data_df = pd.DataFrame(data_transf,columns=X_feat.columns)
-
-    data_wrapper = TabularDataset(data=data_df, )
-
-
-    iEncoder = IdentityEncoder(data.descriptor)
-    generator = ProbabilitiesWeightBasedGenerator(bbox, data, iEncoder)
+    generator = ProbabilitiesWeightBasedGenerator(bbox, data, encoder)
     rnd_generator = RandomGenerator(bbox, data, encoder)
 
     print('Computing distances of custom generator')
@@ -201,6 +199,7 @@ def compute_statistics_distance():
         title='Distances with the original Data'
     )
     box_plot.save('plot/boxplot.png')
+
 
 def measure_distances(data, encoder, generator, x):
     global_mins = []
