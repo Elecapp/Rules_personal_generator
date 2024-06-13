@@ -1,13 +1,22 @@
 import pandas as pd
 import numpy as np
+from numpy.matlib import rand
 
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import OrdinalEncoder
 
+import umap.umap_ as umap
+import umap.plot
+
+import matplotlib
+matplotlib.use('TkAgg')
+import matplotlib.pyplot as plt
+
 from sklearn.preprocessing import StandardScaler
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import make_pipeline
+
 
 import random
 from lore_sa.dataset import TabularDataset, Dataset
@@ -55,6 +64,24 @@ class IdentityEncoder(EncDec):
     def decode_target_class(self, x: np.array):
         return x
 
+class UMAPMapper():
+
+    def __init__(self, dataset: Dataset, bbox: AbstractBBox, encoder: EncDec):
+        reducer = umap.UMAP(random_state=42)
+        train = dataset.df.loc[:, ['Week5_Covid', 'Week4_Covid', 'Week3_Covid', 'Week5_Mobility', 'Week4_Mobility',
+                    'Week3_Mobility', 'Week2_Mobility', 'Days_passed', 'Duration']]
+        encoded_train = encoder.encode(train.values)
+
+        self.encoder = encoder
+        self.projected_train = reducer.fit_transform(encoded_train)
+
+        self.umap = reducer
+
+
+
+    def project(self, arr: np.array):
+        encoded_arr = self.encoder.encode(arr)
+        return self.umap.transform(encoded_arr)
 
 class ProbabilitiesWeightBasedGenerator(NeighborhoodGenerator):
 
@@ -72,20 +99,19 @@ class ProbabilitiesWeightBasedGenerator(NeighborhoodGenerator):
         choices = [0, 1, 2, 3, 4]
 
         covid_weights = [
-            [0.0, 0.25, 0.13, 0.36, 0.26],  # 0
-            [0.0, 0.40, 0.30, 0.20, 0.10],  # 1
-            [0.0, 0.25, 0.40, 0.25, 0.10],  # 2
-            [0.0, 0.10, 0.25, 0.40, 0.25],  # 3
-            [0.0, 0.10, 0.20, 0.30, 0.40],  # 4
+            [0.0, 0.25, 0.13, 0.36, 0.00],   # 0
+            [0.0, 0.79, 0.19, 0.02, 0.00],   # 1
+            [0.0, 0.06, 0.66, 0.26, 0.01],  # 2
+            [0.0, 0.00, 0.09, 0.81, 0.10],  # 3
+            [0.0, 0.00, 0.00, 0.11, 0.89],   # 4
         ]
 
         mobility_weights = [
-            [0.0, 0.12, 0.18, 0.45, 0.24],  # 0
-            [0.0, 0.40, 0.30, 0.20, 0.10],  # 1
-            [0.0, 0.25, 0.40, 0.25, 0.10],  # 2
-            [0.0, 0.10, 0.25, 0.40, 0.25],  # 3
-            [0.0, 0.10, 0.20, 0.30, 0.40]  # 4
-
+            [0.0, 0.12, 0.02, 0.45, 0.24],  # 0
+            [0.0, 0.95, 0.05, 0.00, 0.00],  # 1
+            [0.0, 0.02, 0.64, 0.31, 0.02],  # 2
+            [0.0, 0.00, 0.10, 0.80, 0.10],  # 3
+            [0.0, 0.14, 0.02, 0.17, 0.68]   # 4
         ]
 
         for _ in range(num_instances):
@@ -104,12 +130,12 @@ class ProbabilitiesWeightBasedGenerator(NeighborhoodGenerator):
             mob_sec = [f"m{int(v)}" for v in perturbed_arr[3:7]]
             tot = [*covid_sec, *mob_sec, perturbed_arr[7], perturbed_arr[8]]
 
-            dec = encoder.encode([tot])[0]
+            #dec = encoder.encode([tot])[0]
 
-            perturbed_arrays.append(dec)
+            perturbed_arrays.append(tot)
 
         # save to png
-        self.neighborhood = np.array(perturbed_arrays)
+        self.neighborhood = encoder.encode(perturbed_arrays)
 
         return self.neighborhood
 
@@ -171,41 +197,68 @@ def compute_statistics_distance():
     model = create_and_train_model(res)
     bbox = sklearn_classifier_bbox.sklearnBBox(model)
     data = TabularDataset(data=res, class_name='Class_label')
+
     x = data.df.iloc[355, :-1].values
     encoder = ColumnTransformerEnc(data.descriptor)
+    umap_transformer = UMAPMapper(data, bbox, encoder)
     generator = ProbabilitiesWeightBasedGenerator(bbox, data, encoder)
     rnd_generator = RandomGenerator(bbox, data, encoder)
 
+    #tsne = TSNEMapper(data,bbox)
+
+
+    test_neighb = generator.generate(encoder.encode(x.reshape(1, -1))[0], 1000, data.descriptor, encoder)
+
+
     print('Computing distances of custom generator')
-    np_mins = measure_distances(data, encoder, generator, x)
+
+    np_mins = measure_distances(data, encoder, generator, x, umap_transformer, label='Custom')
     print('custom generator', np_mins)
 
-    print('Computing distances of random generator')
-    rnd_np_mins = measure_distances(data, encoder, rnd_generator, x)
+    print('Euclidean distances from the original data')
+    rnd_np_mins = measure_distances(data, encoder, rnd_generator, x, umap_transformer, label='Random')
     print('random generator', rnd_np_mins)
     alt_df_dist_o = pd.DataFrame(np_mins, columns=['Distance'])
     alt_df_dist_r = pd.DataFrame(rnd_np_mins, columns=['Distance'])
     print(alt_df_dist_o.head(10))
-    alt_df_dist_o['source'] = 'our'
-    alt_df_dist_r['source'] = 'random'
+    alt_df_dist_o['source'] = 'Custom'
+    alt_df_dist_r['source'] = 'Random'
     boxplot_df = pd.concat([alt_df_dist_o, alt_df_dist_r], axis=0)
+    xscale = alt.Scale(domain=(2.44, 2.64))
     box_plot = alt.Chart(boxplot_df).mark_boxplot().encode(
-        alt.X("Distance:Q").scale(zero=False),
+        alt.X("Distance:Q", scale=xscale),
         alt.Y("source:N"),
         alt.Color("source:N")
     ).properties(
-        height=300,
-        width=500,
-        title='Distances with the original Data'
+        height=150,
+        width=400,
+        title='Euclidean distances from the original data'
     )
-    box_plot.save('plot/boxplot.png')
+    box_plot.save('plot/boxplot_bay.pdf')
 
+def measure_distances(data, encoder, generator, x, umapper: UMAPMapper, label: str):
+    preprocessor = generator.bbox.bbox.named_steps.get('columntransformer')
 
-def measure_distances(data, encoder, generator, x):
     global_mins = []
-    for i in range(10):
-        neighb = generator.generate(encoder.encode(x.reshape(1, -1))[0], 1000, data.descriptor, encoder)
-        dists = calculate_distance(neighb, encoder.encoder.transform(data.df.iloc[:, :-1].values))
+    for i in range(1):
+        neighb_ohe = generator.generate(encoder.encode(x.reshape(1, -1))[0], 1000, data.descriptor, encoder)
+
+        neighb = encoder.decode(neighb_ohe)
+        projected_neighb = umapper.project(neighb)
+        neighb_Z = preprocessor.transform(neighb)
+        df_umap = pd.DataFrame(projected_neighb)
+        #df_umap.to_csv(f"datasets/projected_neigh_{label}.csv")
+        inst_enc = encoder.encode(x.reshape(1, -1))[0]
+        inst_to_plot = encoder.decode(inst_enc)
+
+        #plot umapper.projected_train in grigio, projected_neighb in blu if label == 'random' e Orange if label=='custom'
+
+        projected_train = umapper.projected_train
+        df_train_umap = pd.DataFrame(projected_train)
+        #df_train_umap.to_csv("datasets/train_umap.csv")
+
+
+        dists = calculate_distance(neighb_Z, preprocessor.transform(data.df.iloc[:, :-1].values))
         local_mins = np.min(dists, axis=1)
         global_mins.append(local_mins)
         if i % 100 == 0:
@@ -256,11 +309,13 @@ def calculate_distance(X1: np.array, X2: np.array, y_1: np.array = None, y_2: np
     return dists
 
 
-def project_and_plot_data(X: np.array, y: np.array = None):
-    pass
-
-
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    new_lore()
-    compute_statistics_distance()
+
+   new_lore()
+
+   compute_statistics_distance()
+
+   #UMAPMapper()
+
+
