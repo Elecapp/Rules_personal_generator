@@ -78,7 +78,9 @@ class UMAPMapper():
 
         self.umap = reducer
 
-
+class ModelManager:
+    def __init__(self):
+        self.model = None
 
     def project(self, arr: np.array):
         encoded_arr = self.encoder.encode(arr)
@@ -158,44 +160,51 @@ def load_data_from_csv():
     return result_df
 
 
-def create_and_train_model(result_df):
-    y = result_df["Class_label"].values
-    X_feat = result_df.loc[:, 'Week5_Covid':'Duration'].values
-    covid_categories = ['NONE', 'c1', 'c2', 'c3', 'c4']
-    mobility_categories = ['NONE', 'm1', 'm2', 'm3', 'm4']
-    enc = OrdinalEncoder(
-        categories=[covid_categories, covid_categories, covid_categories, mobility_categories, mobility_categories,
-                    mobility_categories, mobility_categories])
-    numerical_preprocessor = StandardScaler()
-    preprocessor = ColumnTransformer(
-        [
-            ("ordinal-encoder", enc, list(range(0, 7))),
-            ("standard_scaler", numerical_preprocessor, list(range(7, 9))),
-        ]
-    )
-    clf = RandomForestClassifier(n_estimators=100, random_state=0)
-    model = make_pipeline(preprocessor, clf)
-
-    data_train, data_test, target_train, target_test = train_test_split(
-        X_feat, y, random_state=0
-    )
-    _ = model.fit(data_train, target_train)
-
-    encoded_train = preprocessor.fit_transform(data_train)
     df = pd.DataFrame(encoded_train)
     df.columns = result_df.columns[:-1]
     df.iloc[:, -2:] = result_df.iloc[:, -3:-1]
     df['Class_label'] = result_df['Class_label']
     print(df)
 
+    def create_and_train_model(self, result_df):
+        y = result_df["Class_label"].values
+        X_feat = result_df.loc[:, 'Week5_Covid':'Duration'].values
+        covid_categories = ['NONE', 'c1', 'c2', 'c3', 'c4']
+        mobility_categories = ['NONE', 'm1', 'm2', 'm3', 'm4']
+        enc = OrdinalEncoder(
+            categories=[covid_categories, covid_categories, covid_categories, mobility_categories, mobility_categories,
+                        mobility_categories, mobility_categories])
+        numerical_preprocessor = StandardScaler()
+        preprocessor = ColumnTransformer(
+            [
+                ("ordinal-encoder", enc, list(range(0, 7))),
+                ("standard_scaler", numerical_preprocessor, list(range(7, 9))),
+            ]
+        )
+        clf = RandomForestClassifier(n_estimators=100, random_state=0)
+        model = make_pipeline(preprocessor, clf)
+
+        data_train, data_test, target_train, target_test = train_test_split(
+            X_feat, y, random_state=0
+        )
+        _ = model.fit(data_train, target_train)
+
+        encoded_train = preprocessor.fit_transform(data_train)
+
     print(model.score(data_test, target_test))
+    self.model = model
+
+    def get_model(self):
+        return self.model
 
     return model
 
 
-def compute_statistics_distance():
+def compute_statistics_distance(model_manager):
     res = load_data_from_csv()
-    model = create_and_train_model(res)
+    model_manager = ModelManager()
+    model = model_manager.get_model()
+    model_manager.create_and_train_model(res)
     bbox = sklearn_classifier_bbox.sklearnBBox(model)
     data = TabularDataset(data=res, class_name='Class_label')
 
@@ -240,7 +249,8 @@ def compute_statistics_distance():
 def measure_distances(data, encoder, generator, x, umapper: UMAPMapper, label: str):
     preprocessor = generator.bbox.bbox.named_steps.get('columntransformer')
     res = load_data_from_csv()
-    model = create_and_train_model(res)
+    model_manager = ModelManager()
+    model = model_manager.get_model()
 
     global_mins = []
     for i in range(1):
@@ -297,8 +307,9 @@ def measure_distances(data, encoder, generator, x, umapper: UMAPMapper, label: s
 
 def new_lore():
     res = load_data_from_csv()
-
-    model = create_and_train_model(res)
+    model_manager = ModelManager()
+    model = model_manager.get_model()
+    #model = create_and_train_model(res)
     instance = res.values[5, : -1]
     print(instance)
     prediction = model.predict([instance])
