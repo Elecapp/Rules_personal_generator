@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
-from numpy.matlib import rand
+
+from datetime import datetime, timedelta
 
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
@@ -234,31 +235,57 @@ def compute_statistics_distance():
         width=400,
         title='Euclidean distances from the original data'
     )
-    box_plot.save('plot/boxplot_bay.pdf')
+    #box_plot.save('plot/boxplot_bay.pdf')
 
 def measure_distances(data, encoder, generator, x, umapper: UMAPMapper, label: str):
     preprocessor = generator.bbox.bbox.named_steps.get('columntransformer')
+    res = load_data_from_csv()
+    model = create_and_train_model(res)
 
     global_mins = []
     for i in range(1):
-        neighb_ohe = generator.generate(encoder.encode(x.reshape(1, -1))[0], 1000, data.descriptor, encoder)
+        neighb_ohe = generator.generate(encoder.encode(x.reshape(1, -1))[0], 100, data.descriptor, encoder)
 
         neighb = encoder.decode(neighb_ohe)
         projected_neighb = umapper.project(neighb)
-        neighb_Z = preprocessor.transform(neighb)
-        df_umap = pd.DataFrame(projected_neighb)
-        #df_umap.to_csv(f"datasets/projected_neigh_{label}.csv")
-        inst_enc = encoder.encode(x.reshape(1, -1))[0]
-        inst_to_plot = encoder.decode(inst_enc)
 
-        #plot umapper.projected_train in grigio, projected_neighb in blu if label == 'random' e Orange if label=='custom'
+        neighb_Z = preprocessor.transform(neighb)
+        # Create the df
+        x_array = (np.array([x]))
+        combined_array = np.concatenate((x_array, neighb), axis=0)
+        processed_combined_array = preprocessor.transform(combined_array)
+        prediction = model.predict(combined_array)
+        enc_pred = encoder.encode_target_class(prediction.reshape(-1, 1))
+
+        df_neigh_100 = pd.DataFrame(processed_combined_array, columns=res.columns[:-1])
+
+        df_neigh_100['Class_label'] = enc_pred
+        new_values_days = [int(arr[7]) for arr in neighb]
+        new_values_duration = [int(arr[8]) for arr in neighb]
+
+        for i in range(1, len(df_neigh_100)):
+            df_neigh_100.loc[i, 'Days_passed'] = new_values_days[i - 1]
+            df_neigh_100.loc[i, 'Duration'] = new_values_duration[i - 1]
+        df_neigh_100.loc[0,'Days_passed'] = 245.0
+        df_neigh_100.loc[0, 'Duration'] = 28
+
+        #add date and time columns
+
+        base_date = datetime(2020, 2, 17)
+        df_neigh_100['Start_date'] = df_neigh_100['Days_passed'].apply(lambda x: base_date + timedelta(days=x))
+        df_neigh_100['End_date'] = df_neigh_100.apply(lambda row: row['Start_date'] + timedelta(days=row['Duration']), axis=1)
+
+        df_neigh_100.to_csv(f'datasets/df_neigh_100_{label}.csv')
+        df_umap = pd.DataFrame(projected_neighb)
+        df_umap.to_csv(f"datasets/projected_neigh_{label}_100.csv")
 
         projected_train = umapper.projected_train
         df_train_umap = pd.DataFrame(projected_train)
-        #df_train_umap.to_csv("datasets/train_umap.csv")
+        df_train_umap.to_csv("datasets/train_umap_100.csv")
 
 
         dists = calculate_distance(neighb_Z, preprocessor.transform(data.df.iloc[:, :-1].values))
+
         local_mins = np.min(dists, axis=1)
         global_mins.append(local_mins)
         if i % 100 == 0:
@@ -280,9 +307,10 @@ def new_lore():
     bbox = sklearn_classifier_bbox.sklearnBBox(model)
     data = TabularDataset(data=res, class_name='Class_label')
     x = data.df.iloc[355, :-1].values
+    #x = data.df.iloc[45, :-1].values
     print(x)
     # lore = TabularRandomGeneratorLore(bbox, data)
-    encoder = ColumnTransformerEnc(data.descriptor)
+    encoder = ColumnTransformerEnc(data. descriptor)
     surrogate = DecisionTreeSurrogate()
     generator = ProbabilitiesWeightBasedGenerator(bbox, data, encoder)
     proba_lore = Lore(bbox, data, encoder, generator, surrogate)
@@ -297,7 +325,7 @@ def new_lore():
         print(cr)
         print('-----')
 
-    # for i in range(nrows):
+    #for i in range(nrows):
     #    rl = proba_lore.explain(data.df.iloc[i, :-1].values)
     #    if len(rl['counterfactuals']) > 0:
     #        print(i)
