@@ -8,7 +8,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import OrdinalEncoder
 
 import umap.umap_ as umap
-import umap.plot
+#import umap.plot
 
 import matplotlib
 matplotlib.use('TkAgg')
@@ -78,9 +78,7 @@ class UMAPMapper():
 
         self.umap = reducer
 
-class ModelManager:
-    def __init__(self):
-        self.model = None
+
 
     def project(self, arr: np.array):
         encoded_arr = self.encoder.encode(arr)
@@ -160,51 +158,44 @@ def load_data_from_csv():
     return result_df
 
 
+def create_and_train_model(result_df):
+    y = result_df["Class_label"].values
+    X_feat = result_df.loc[:, 'Week5_Covid':'Duration'].values
+    covid_categories = ['NONE', 'c1', 'c2', 'c3', 'c4']
+    mobility_categories = ['NONE', 'm1', 'm2', 'm3', 'm4']
+    enc = OrdinalEncoder(
+        categories=[covid_categories, covid_categories, covid_categories, mobility_categories, mobility_categories,
+                    mobility_categories, mobility_categories])
+    numerical_preprocessor = StandardScaler()
+    preprocessor = ColumnTransformer(
+        [
+            ("ordinal-encoder", enc, list(range(0, 7))),
+            ("standard_scaler", numerical_preprocessor, list(range(7, 9))),
+        ]
+    )
+    clf = RandomForestClassifier(n_estimators=100, random_state=0)
+    model = make_pipeline(preprocessor, clf)
+
+    data_train, data_test, target_train, target_test = train_test_split(
+        X_feat, y, random_state=0
+    )
+    _ = model.fit(data_train, target_train)
+
+    encoded_train = preprocessor.fit_transform(data_train)
     df = pd.DataFrame(encoded_train)
     df.columns = result_df.columns[:-1]
     df.iloc[:, -2:] = result_df.iloc[:, -3:-1]
     df['Class_label'] = result_df['Class_label']
     print(df)
 
-    def create_and_train_model(self, result_df):
-        y = result_df["Class_label"].values
-        X_feat = result_df.loc[:, 'Week5_Covid':'Duration'].values
-        covid_categories = ['NONE', 'c1', 'c2', 'c3', 'c4']
-        mobility_categories = ['NONE', 'm1', 'm2', 'm3', 'm4']
-        enc = OrdinalEncoder(
-            categories=[covid_categories, covid_categories, covid_categories, mobility_categories, mobility_categories,
-                        mobility_categories, mobility_categories])
-        numerical_preprocessor = StandardScaler()
-        preprocessor = ColumnTransformer(
-            [
-                ("ordinal-encoder", enc, list(range(0, 7))),
-                ("standard_scaler", numerical_preprocessor, list(range(7, 9))),
-            ]
-        )
-        clf = RandomForestClassifier(n_estimators=100, random_state=0)
-        model = make_pipeline(preprocessor, clf)
-
-        data_train, data_test, target_train, target_test = train_test_split(
-            X_feat, y, random_state=0
-        )
-        _ = model.fit(data_train, target_train)
-
-        encoded_train = preprocessor.fit_transform(data_train)
-
     print(model.score(data_test, target_test))
-    self.model = model
-
-    def get_model(self):
-        return self.model
 
     return model
 
 
-def compute_statistics_distance(model_manager):
+def compute_statistics_distance():
     res = load_data_from_csv()
-    model_manager = ModelManager()
-    model = model_manager.get_model()
-    model_manager.create_and_train_model(res)
+    model = create_and_train_model(res)
     bbox = sklearn_classifier_bbox.sklearnBBox(model)
     data = TabularDataset(data=res, class_name='Class_label')
 
@@ -222,11 +213,11 @@ def compute_statistics_distance(model_manager):
 
     print('Computing distances of custom generator')
 
-    np_mins = measure_distances(data, encoder, generator, x, umap_transformer, label='Custom')
+    np_mins = measure_distances(data, encoder, generator, x, umap_transformer, 'Custom', res, model)
     print('custom generator', np_mins)
 
     print('Euclidean distances from the original data')
-    rnd_np_mins = measure_distances(data, encoder, rnd_generator, x, umap_transformer, label='Random')
+    rnd_np_mins = measure_distances(data, encoder, rnd_generator, x, umap_transformer, 'Random', res, model )
     print('random generator', rnd_np_mins)
     alt_df_dist_o = pd.DataFrame(np_mins, columns=['Distance'])
     alt_df_dist_r = pd.DataFrame(rnd_np_mins, columns=['Distance'])
@@ -246,11 +237,10 @@ def compute_statistics_distance(model_manager):
     )
     #box_plot.save('plot/boxplot_bay.pdf')
 
-def measure_distances(data, encoder, generator, x, umapper: UMAPMapper, label: str):
+def measure_distances(data, encoder, generator, x, umapper: UMAPMapper, label: str, res, model):
     preprocessor = generator.bbox.bbox.named_steps.get('columntransformer')
     res = load_data_from_csv()
-    model_manager = ModelManager()
-    model = model_manager.get_model()
+    model = create_and_train_model(res)
 
     global_mins = []
     for i in range(1):
@@ -307,9 +297,8 @@ def measure_distances(data, encoder, generator, x, umapper: UMAPMapper, label: s
 
 def new_lore():
     res = load_data_from_csv()
-    model_manager = ModelManager()
-    model = model_manager.get_model()
-    #model = create_and_train_model(res)
+
+    model = create_and_train_model(res)
     instance = res.values[5, : -1]
     print(instance)
     prediction = model.predict([instance])
@@ -350,10 +339,10 @@ def calculate_distance(X1: np.array, X2: np.array, y_1: np.array = None, y_2: np
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-
-   new_lore()
-
-   compute_statistics_distance()
+    res = load_data_from_csv()
+    model = create_and_train_model(res)
+    new_lore(res, model)
+    compute_statistics_distance(res, model)
 
    #UMAPMapper()
 
