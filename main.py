@@ -8,7 +8,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import OrdinalEncoder
 
 import umap.umap_ as umap
-import umap.plot
+#import umap.plot
 
 import matplotlib
 matplotlib.use('TkAgg')
@@ -193,9 +193,7 @@ def create_and_train_model(result_df):
     return model
 
 
-def compute_statistics_distance():
-    res = load_data_from_csv()
-    model = create_and_train_model(res)
+def compute_statistics_distance(res, model):
     bbox = sklearn_classifier_bbox.sklearnBBox(model)
     data = TabularDataset(data=res, class_name='Class_label')
 
@@ -213,11 +211,11 @@ def compute_statistics_distance():
 
     print('Computing distances of custom generator')
 
-    np_mins = measure_distances(data, encoder, generator, x, umap_transformer, label='Custom')
+    np_mins = measure_distances(data, encoder, generator, x, umap_transformer, 'Custom', res, model)
     print('custom generator', np_mins)
 
     print('Euclidean distances from the original data')
-    rnd_np_mins = measure_distances(data, encoder, rnd_generator, x, umap_transformer, label='Random')
+    rnd_np_mins = measure_distances(data, encoder, rnd_generator, x, umap_transformer, 'Random', res, model )
     print('random generator', rnd_np_mins)
     alt_df_dist_o = pd.DataFrame(np_mins, columns=['Distance'])
     alt_df_dist_r = pd.DataFrame(rnd_np_mins, columns=['Distance'])
@@ -237,10 +235,8 @@ def compute_statistics_distance():
     )
     #box_plot.save('plot/boxplot_bay.pdf')
 
-def measure_distances(data, encoder, generator, x, umapper: UMAPMapper, label: str):
+def measure_distances(data, encoder, generator, x, umapper: UMAPMapper, label: str, res, model):
     preprocessor = generator.bbox.bbox.named_steps.get('columntransformer')
-    res = load_data_from_csv()
-    model = create_and_train_model(res)
 
     global_mins = []
     for i in range(1):
@@ -295,10 +291,7 @@ def measure_distances(data, encoder, generator, x, umapper: UMAPMapper, label: s
     return np_mins
 
 
-def new_lore():
-    res = load_data_from_csv()
-
-    model = create_and_train_model(res)
+def new_lore(res, model):
     instance = res.values[5, : -1]
     print(instance)
     prediction = model.predict([instance])
@@ -339,10 +332,10 @@ def calculate_distance(X1: np.array, X2: np.array, y_1: np.array = None, y_2: np
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-
-   new_lore()
-
-   compute_statistics_distance()
+    res = load_data_from_csv()
+    model = create_and_train_model(res)
+    new_lore(res, model)
+    compute_statistics_distance(res, model)
 
    #UMAPMapper()
 
