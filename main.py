@@ -71,14 +71,13 @@ class UMAPMapper():
         reducer = umap.UMAP(random_state=42)
         train = dataset.df.loc[:, ['Week5_Covid', 'Week4_Covid', 'Week3_Covid', 'Week5_Mobility', 'Week4_Mobility',
                     'Week3_Mobility', 'Week2_Mobility', 'Days_passed', 'Duration']]
+
         encoded_train = encoder.encode(train.values)
 
         self.encoder = encoder
         self.projected_train = reducer.fit_transform(encoded_train)
 
         self.umap = reducer
-
-
 
     def project(self, arr: np.array):
         encoded_arr = self.encoder.encode(arr)
@@ -193,33 +192,36 @@ def create_and_train_model(result_df):
     return model
 
 
-def compute_statistics_distance():
-    res = load_data_from_csv()
-    model = create_and_train_model(res)
+def compute_statistics_distance(res, model):
     bbox = sklearn_classifier_bbox.sklearnBBox(model)
     data = TabularDataset(data=res, class_name='Class_label')
 
     x = data.df.iloc[355, :-1].values
     encoder = ColumnTransformerEnc(data.descriptor)
-    umap_transformer = UMAPMapper(data, bbox, encoder)
+    #umap_transformer = UMAPMapper(data, bbox, encoder)
     generator = ProbabilitiesWeightBasedGenerator(bbox, data, encoder)
     rnd_generator = RandomGenerator(bbox, data, encoder)
 
-    #tsne = TSNEMapper(data,bbox)
-
-
-    test_neighb = generator.generate(encoder.encode(x.reshape(1, -1))[0], 1000, data.descriptor, encoder)
 
 
     print('Computing distances of custom generator')
-
-    np_mins = measure_distances(data, encoder, generator, x, umap_transformer, 'Custom', res, model)
-    print('custom generator', np_mins)
+    cst_np_mins, cst_neighb_z, cst_bbox_lbl = measure_distances(data, encoder, generator, x, 'Custom', res, model)
+    cst_lbl = np.full(len(cst_np_mins), 'cst').reshape(-1, 1)
+    cst_neighb_z_lbl = np.concatenate([cst_lbl, cst_neighb_z, cst_bbox_lbl], axis=1)
 
     print('Euclidean distances from the original data')
-    rnd_np_mins = measure_distances(data, encoder, rnd_generator, x, umap_transformer, 'Random', res, model )
-    print('random generator', rnd_np_mins)
-    alt_df_dist_o = pd.DataFrame(np_mins, columns=['Distance'])
+    rnd_np_mins, rnd_neighb_z, rnd_bbox_lbl = measure_distances(data, encoder, rnd_generator, x, 'Random', res, model )
+    rnd_lbl = np.full(len(rnd_np_mins), 'rnd').reshape(-1, 1)
+    rnd_neighb_z_lbl = np.concatenate([rnd_lbl, rnd_neighb_z,rnd_bbox_lbl], axis=1)
+
+    neighbs = np.concatenate([rnd_neighb_z_lbl, cst_neighb_z_lbl], axis=0)
+
+    reducer = umap.UMAP(n_neighbors=30,  random_state=42)
+    proj_neighbs = reducer.fit_transform(neighbs[:, 1: -3])
+    neighbs = np.concatenate([neighbs, proj_neighbs], axis=1)
+
+
+    alt_df_dist_o = pd.DataFrame(cst_np_mins, columns=['Distance'])
     alt_df_dist_r = pd.DataFrame(rnd_np_mins, columns=['Distance'])
     print(alt_df_dist_o.head(10))
     alt_df_dist_o['source'] = 'Custom'
@@ -237,51 +239,51 @@ def compute_statistics_distance():
     )
     #box_plot.save('plot/boxplot_bay.pdf')
 
-def measure_distances(data, encoder, generator, x, umapper: UMAPMapper, label: str, res, model):
+def measure_distances(data, encoder, generator, x, label: str, res, model, neighb_size:int=100):
     preprocessor = generator.bbox.bbox.named_steps.get('columntransformer')
-    res = load_data_from_csv()
-    model = create_and_train_model(res)
-
     global_mins = []
     for i in range(1):
-        neighb_ohe = generator.generate(encoder.encode(x.reshape(1, -1))[0], 100, data.descriptor, encoder)
-
+        # project the instance x and create a neighborhood of given size
+        neighb_ohe = generator.generate(encoder.encode(x.reshape(1, -1))[0], neighb_size, data.descriptor, encoder)
+        # decode the neighborhood
         neighb = encoder.decode(neighb_ohe)
-        projected_neighb = umapper.project(neighb)
+        bbox_labels = model.predict(neighb).reshape(-1, 1)
 
+        # apply the preprocessor of the model to prepare for copmuting distances
         neighb_Z = preprocessor.transform(neighb)
+
         # Create the df
-        x_array = (np.array([x]))
-        combined_array = np.concatenate((x_array, neighb), axis=0)
-        processed_combined_array = preprocessor.transform(combined_array)
-        prediction = model.predict(combined_array)
-        enc_pred = encoder.encode_target_class(prediction.reshape(-1, 1))
-
-        df_neigh_100 = pd.DataFrame(processed_combined_array, columns=res.columns[:-1])
-
-        df_neigh_100['Class_label'] = enc_pred
-        new_values_days = [int(arr[7]) for arr in neighb]
-        new_values_duration = [int(arr[8]) for arr in neighb]
-
-        for i in range(1, len(df_neigh_100)):
-            df_neigh_100.loc[i, 'Days_passed'] = new_values_days[i - 1]
-            df_neigh_100.loc[i, 'Duration'] = new_values_duration[i - 1]
-        df_neigh_100.loc[0,'Days_passed'] = 245.0
-        df_neigh_100.loc[0, 'Duration'] = 28
-
-        #add date and time columns
-
-        base_date = datetime(2020, 2, 17)
-        df_neigh_100['Start_date'] = df_neigh_100['Days_passed'].apply(lambda x: base_date + timedelta(days=x))
-        df_neigh_100['End_date'] = df_neigh_100.apply(lambda row: row['Start_date'] + timedelta(days=row['Duration']), axis=1)
-
-        df_neigh_100.to_csv(f'datasets/df_neigh_100_{label}.csv')
-        df_umap = pd.DataFrame(projected_neighb)
-        df_umap.to_csv(f"datasets/projected_neigh_{label}_100.csv")
-
-        projected_train = umapper.projected_train
-        df_train_umap = pd.DataFrame(projected_train)
-        df_train_umap.to_csv("datasets/train_umap_100.csv")
+        # x_array = (np.array([x]))
+        # combined_array = np.concatenate((x_array, neighb), axis=0)
+        # processed_combined_array = preprocessor.transform(combined_array)
+        # prediction = model.predict(combined_array)
+        # enc_pred = encoder.encode_target_class(prediction.reshape(-1, 1))
+        #
+        # df_neigh_100 = pd.DataFrame(processed_combined_array, columns=res.columns[:-1])
+        #
+        # df_neigh_100['Class_label'] = enc_pred
+        # new_values_days = [int(arr[7]) for arr in neighb]
+        # new_values_duration = [int(arr[8]) for arr in neighb]
+        #
+        # for i in range(1, len(df_neigh_100)):
+        #     df_neigh_100.loc[i, 'Days_passed'] = new_values_days[i - 1]
+        #     df_neigh_100.loc[i, 'Duration'] = new_values_duration[i - 1]
+        # df_neigh_100.loc[0,'Days_passed'] = 245.0
+        # df_neigh_100.loc[0, 'Duration'] = 28
+        #
+        # #add date and time columns
+        #
+        # base_date = datetime(2020, 2, 17)
+        # df_neigh_100['Start_date'] = df_neigh_100['Days_passed'].apply(lambda x: base_date + timedelta(days=x))
+        # df_neigh_100['End_date'] = df_neigh_100.apply(lambda row: row['Start_date'] + timedelta(days=row['Duration']), axis=1)
+        #
+        # df_neigh_100.to_csv(f'datasets/df_neigh_100_{label}.csv')
+        # df_umap = pd.DataFrame(projected_neighb)
+        # df_umap.to_csv(f"datasets/projected_neigh_{label}_100.csv")
+        #
+        # projected_train = umapper.projected_train
+        # df_train_umap = pd.DataFrame(projected_train)
+        # df_train_umap.to_csv("datasets/train_umap_100.csv")
 
 
         dists = calculate_distance(neighb_Z, preprocessor.transform(data.df.iloc[:, :-1].values))
@@ -292,18 +294,16 @@ def measure_distances(data, encoder, generator, x, umapper: UMAPMapper, label: s
             print(f"{i}...\r")
     print()
     np_mins = np.average(np.array(global_mins), axis=0)
-    return np_mins
+    return np_mins, neighb_Z, bbox_labels
 
 
-def new_lore():
-    res = load_data_from_csv()
+def new_lore(res, model):
 
-    model = create_and_train_model(res)
     instance = res.values[5, : -1]
     print(instance)
     prediction = model.predict([instance])
-
     print(prediction)
+
     bbox = sklearn_classifier_bbox.sklearnBBox(model)
     data = TabularDataset(data=res, class_name='Class_label')
     x = data.df.iloc[355, :-1].values
@@ -331,8 +331,8 @@ def new_lore():
     #        print(i)
 
 
-def calculate_distance(X1: np.array, X2: np.array, y_1: np.array = None, y_2: np.array = None):
-    dists = pairwise_distances(X1, X2, metric='euclidean')
+def calculate_distance(X1: np.array, X2: np.array, y_1: np.array = None, y_2: np.array = None, metric:str='euclidean'):
+    dists = pairwise_distances(X1, X2, metric=metric)
 
     return dists
 
