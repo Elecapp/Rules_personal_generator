@@ -192,17 +192,28 @@ def create_and_train_model(result_df):
     return model
 
 
+def computed_dates_from_offsets(offs: np.array):
+    base_date = datetime(2020, 2, 17)
+    starting_date = base_date + timedelta(offs[0])
+    ending_date = starting_date + timedelta(offs[1])
+
+    return np.array([starting_date, ending_date])
+
+
 def compute_statistics_distance(res, model):
     bbox = sklearn_classifier_bbox.sklearnBBox(model)
     data = TabularDataset(data=res, class_name='Class_label')
+    # these will be used to scale back the original values of temporal dimensions
+    model_preprocessor = model.named_steps.get('columntransformer')
+    ordinal_encoder = model_preprocessor.named_transformers_.get('ordinal-encoder')
+    model_scaler = model_preprocessor.named_transformers_.get('standard_scaler')
+
 
     x = data.df.iloc[355, :-1].values
+    #x = np.array([['c4', 'c4', 'c4', 'm2', 'm2', 'm3', 'm3', 364, 28]])
     encoder = ColumnTransformerEnc(data.descriptor)
-    #umap_transformer = UMAPMapper(data, bbox, encoder)
     generator = ProbabilitiesWeightBasedGenerator(bbox, data, encoder)
     rnd_generator = RandomGenerator(bbox, data, encoder)
-
-
 
     print('Computing distances of custom generator')
     cst_np_mins, cst_neighb_z, cst_bbox_lbl = measure_distances(data, encoder, generator, x, 'Custom', res, model)
@@ -214,11 +225,28 @@ def compute_statistics_distance(res, model):
     rnd_lbl = np.full(len(rnd_np_mins), 'rnd').reshape(-1, 1)
     rnd_neighb_z_lbl = np.concatenate([rnd_lbl, rnd_neighb_z,rnd_bbox_lbl], axis=1)
 
-    neighbs = np.concatenate([rnd_neighb_z_lbl, cst_neighb_z_lbl], axis=0)
+    print('Refactor the traingin dataset')
+    trn_lbl = np.full(len(res.values), 'trn').reshape(-1, 1)
+    train_features = model_preprocessor.transform(res.values[:, :-1])
+    train_dataset = np.concatenate([trn_lbl, train_features, res.values[:, -1].reshape(-1,1) ], axis=1)
+
+
+    neighbs = np.concatenate([rnd_neighb_z_lbl, cst_neighb_z_lbl, train_dataset], axis=0)
 
     reducer = umap.UMAP(n_neighbors=30,  random_state=42)
     proj_neighbs = reducer.fit_transform(neighbs[:, 1: -3])
-    neighbs = np.concatenate([neighbs, proj_neighbs], axis=1)
+
+    time_offsets = model_scaler.inverse_transform(neighbs[:,8:10])
+    original_features = ordinal_encoder.inverse_transform(neighbs[:, 1:8])
+    time_interval = np.apply_along_axis(computed_dates_from_offsets, 1, time_offsets)
+
+    neighbs = np.concatenate([neighbs, proj_neighbs, time_interval], axis=1)
+
+    neighbs[:, 8:10] = time_offsets
+
+
+
+
 
 
     alt_df_dist_o = pd.DataFrame(cst_np_mins, columns=['Distance'])
