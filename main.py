@@ -118,10 +118,12 @@ class ProbabilitiesWeightBasedGenerator(NeighborhoodGenerator):
             perturbed_arr = z1.copy()
 
             for val in range(0, 3):  # covid
-                perturbed_arr[val] = random.choices(choices, weights=covid_weights[val])[0]
+                ref_val = int(perturbed_arr[val])
+                perturbed_arr[val] = random.choices(choices, weights=covid_weights[ref_val])[0]
 
             for val in range(3, 7):  # mobility
-                perturbed_arr[val] = random.choices(choices, weights=mobility_weights[val - 3])[0]
+                ref_val = int(perturbed_arr[val])
+                perturbed_arr[val] = random.choices(choices, weights=mobility_weights[ref_val])[0]
 
             perturbed_arr[7] = random.choice(range(42, 442, 7))
             perturbed_arr[8] = random.choice(range(7, 148, 7))
