@@ -209,48 +209,54 @@ def compute_statistics_distance(res, model):
     model_scaler = model_preprocessor.named_transformers_.get('standard_scaler')
 
 
-    x = data.df.iloc[355, :-1].values
-    x = np.array(['c4', 'c4', 'c4', 'm2', 'm2', 'm3', 'm3', np.float64(364), np.float64(28)], dtype=object)
+    df_15= pd.read_csv('datasets/selected_train_instances_15.csv', sep=';')
+
+    for i in range(0, 15):
+        x = df_15.iloc[i, :-1].values
+    #x = np.array(['c4', 'c4', 'c4', 'm2', 'm2', 'm3', 'm3', np.float64(364), np.float64(28)], dtype=object)
+
+        encoder = ColumnTransformerEnc(data.descriptor)
+        generator = ProbabilitiesWeightBasedGenerator(bbox, data, encoder)
+        rnd_generator = RandomGenerator(bbox, data, encoder)
+
+        print('Converting the input instance')
+        ist_lbl = np.full(1, 'ist').reshape(-1, 1)
+        ist_processed = model_preprocessor.transform(x.reshape(1, -1))
+        ist_class_lbl = np.array(['c1'], dtype=object).reshape(-1, 1)
+        ist_neighb = np.concatenate([ist_lbl, ist_processed, ist_class_lbl], axis=1)
+
+        print('Computing distances of custom generator')
+        cst_np_mins, cst_neighb_z, cst_bbox_lbl = measure_distances(data, encoder, generator, x, 'Custom', res, model)
+        cst_lbl = np.full(len(cst_np_mins), 'cst').reshape(-1, 1)
+        cst_neighb_z_lbl = np.concatenate([cst_lbl, cst_neighb_z, cst_bbox_lbl], axis=1)
+
+        print('Euclidean distances from the original data')
+        rnd_np_mins, rnd_neighb_z, rnd_bbox_lbl = measure_distances(data, encoder, rnd_generator, x, 'Random', res, model )
+        rnd_lbl = np.full(len(rnd_np_mins), 'rnd').reshape(-1, 1)
+        rnd_neighb_z_lbl = np.concatenate([rnd_lbl, rnd_neighb_z,rnd_bbox_lbl], axis=1)
+
+        print('Refactor the traingin dataset')
+        trn_lbl = np.full(len(res.values), 'trn').reshape(-1, 1)
+        train_features = model_preprocessor.transform(res.values[:, :-1])
+        train_dataset = np.concatenate([trn_lbl, train_features, res.values[:, -1].reshape(-1,1) ], axis=1)
 
 
-    encoder = ColumnTransformerEnc(data.descriptor)
-    generator = ProbabilitiesWeightBasedGenerator(bbox, data, encoder)
-    rnd_generator = RandomGenerator(bbox, data, encoder)
+        neighbs = np.concatenate([ist_neighb, rnd_neighb_z_lbl, cst_neighb_z_lbl, train_dataset], axis=0)
 
-    print('Converting the input instance')
-    ist_lbl = np.full(1, 'ist').reshape(-1, 1)
-    ist_processed = model_preprocessor.transform(x.reshape(1, -1))
-    ist_class_lbl = np.array(['c1'], dtype=object).reshape(-1, 1)
-    ist_neighb = np.concatenate([ist_lbl, ist_processed, ist_class_lbl], axis=1)
+        reducer = umap.UMAP(n_neighbors=30,  random_state=42)
+        proj_neighbs = reducer.fit_transform(neighbs[:, 1: -3])
 
-    print('Computing distances of custom generator')
-    cst_np_mins, cst_neighb_z, cst_bbox_lbl = measure_distances(data, encoder, generator, x, 'Custom', res, model)
-    cst_lbl = np.full(len(cst_np_mins), 'cst').reshape(-1, 1)
-    cst_neighb_z_lbl = np.concatenate([cst_lbl, cst_neighb_z, cst_bbox_lbl], axis=1)
+        time_offsets = model_scaler.inverse_transform(neighbs[:,8:10])
+        original_features = ordinal_encoder.inverse_transform(neighbs[:, 1:8])
+        time_interval = np.apply_along_axis(computed_dates_from_offsets, 1, time_offsets)
 
-    print('Euclidean distances from the original data')
-    rnd_np_mins, rnd_neighb_z, rnd_bbox_lbl = measure_distances(data, encoder, rnd_generator, x, 'Random', res, model )
-    rnd_lbl = np.full(len(rnd_np_mins), 'rnd').reshape(-1, 1)
-    rnd_neighb_z_lbl = np.concatenate([rnd_lbl, rnd_neighb_z,rnd_bbox_lbl], axis=1)
+        neighbs = np.concatenate([neighbs, proj_neighbs, time_interval], axis=1)
 
-    print('Refactor the traingin dataset')
-    trn_lbl = np.full(len(res.values), 'trn').reshape(-1, 1)
-    train_features = model_preprocessor.transform(res.values[:, :-1])
-    train_dataset = np.concatenate([trn_lbl, train_features, res.values[:, -1].reshape(-1,1) ], axis=1)
+        neighbs[:, 8:10] = time_offsets
+        column_names = ['Instance_gen','Week5_Covid', 'Week4_Covid', 'Week3_Covid', 'Week5_Mobility','Week4_Mobility','Week3_Mobility','Week2_Mobility','Days_passed','Duration','Class_label','umap_x','umap_y','Start_Date','End_date']
+        df = pd.DataFrame(neighbs, columns=column_names)
+        df.to_csv(f'datasets/new_neigh/selected_instances_{i}.csv', index=False)
 
-
-    neighbs = np.concatenate([ist_neighb, rnd_neighb_z_lbl, cst_neighb_z_lbl, train_dataset], axis=0)
-
-    reducer = umap.UMAP(n_neighbors=30,  random_state=42)
-    proj_neighbs = reducer.fit_transform(neighbs[:, 1: -3])
-
-    time_offsets = model_scaler.inverse_transform(neighbs[:,8:10])
-    original_features = ordinal_encoder.inverse_transform(neighbs[:, 1:8])
-    time_interval = np.apply_along_axis(computed_dates_from_offsets, 1, time_offsets)
-
-    neighbs = np.concatenate([neighbs, proj_neighbs, time_interval], axis=1)
-
-    neighbs[:, 8:10] = time_offsets
 
 
 
