@@ -210,10 +210,18 @@ def compute_statistics_distance(res, model):
 
 
     x = data.df.iloc[355, :-1].values
-    #x = np.array([['c4', 'c4', 'c4', 'm2', 'm2', 'm3', 'm3', 364, 28]])
+    x = np.array(['c4', 'c4', 'c4', 'm2', 'm2', 'm3', 'm3', np.float64(364), np.float64(28)], dtype=object)
+
+
     encoder = ColumnTransformerEnc(data.descriptor)
     generator = ProbabilitiesWeightBasedGenerator(bbox, data, encoder)
     rnd_generator = RandomGenerator(bbox, data, encoder)
+
+    print('Converting the input instance')
+    ist_lbl = np.full(1, 'ist').reshape(-1, 1)
+    ist_processed = model_preprocessor.transform(x.reshape(1, -1))
+    ist_class_lbl = np.array(['c1'], dtype=object).reshape(-1, 1)
+    ist_neighb = np.concatenate([ist_lbl, ist_processed, ist_class_lbl], axis=1)
 
     print('Computing distances of custom generator')
     cst_np_mins, cst_neighb_z, cst_bbox_lbl = measure_distances(data, encoder, generator, x, 'Custom', res, model)
@@ -231,7 +239,7 @@ def compute_statistics_distance(res, model):
     train_dataset = np.concatenate([trn_lbl, train_features, res.values[:, -1].reshape(-1,1) ], axis=1)
 
 
-    neighbs = np.concatenate([rnd_neighb_z_lbl, cst_neighb_z_lbl, train_dataset], axis=0)
+    neighbs = np.concatenate([ist_neighb, rnd_neighb_z_lbl, cst_neighb_z_lbl, train_dataset], axis=0)
 
     reducer = umap.UMAP(n_neighbors=30,  random_state=42)
     proj_neighbs = reducer.fit_transform(neighbs[:, 1: -3])
