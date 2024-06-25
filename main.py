@@ -200,7 +200,7 @@ def computed_dates_from_offsets(offs: np.array):
     return np.array([starting_date, ending_date])
 
 
-def compute_statistics_distance(res, model):
+def compute_statistics_distance(x, res, model):
     bbox = sklearn_classifier_bbox.sklearnBBox(model)
     data = TabularDataset(data=res, class_name='Class_label')
     # these will be used to scale back the original values of temporal dimensions
@@ -208,10 +208,8 @@ def compute_statistics_distance(res, model):
     ordinal_encoder = model_preprocessor.named_transformers_.get('ordinal-encoder')
     model_scaler = model_preprocessor.named_transformers_.get('standard_scaler')
 
-
-    x = data.df.iloc[355, :-1].values
-    x = np.array(['c4', 'c4', 'c4', 'm2', 'm2', 'm3', 'm3', np.float64(364), np.float64(28)], dtype=object)
-
+    # x = data.df.iloc[355, :-1].values
+    # x = np.array(['c4', 'c4', 'c4', 'm2', 'm2', 'm3', 'm3', np.float64(364), np.float64(28)], dtype=object)
 
     encoder = ColumnTransformerEnc(data.descriptor)
     generator = ProbabilitiesWeightBasedGenerator(bbox, data, encoder)
@@ -378,7 +376,8 @@ if __name__ == '__main__':
     res = load_data_from_csv()
     model = create_and_train_model(res)
     new_lore(res, model)
-    compute_statistics_distance(res, model)
+    x = x = np.array(['c4', 'c4', 'c4', 'm2', 'm2', 'm3', 'm3', np.float64(364), np.float64(28)], dtype=object)
+    compute_statistics_distance(x, res, model)
 
    #UMAPMapper()
 
