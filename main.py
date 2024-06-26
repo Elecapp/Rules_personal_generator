@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import OrdinalEncoder
+from sklearn.manifold import TSNE
 
 import umap.umap_ as umap
 #import umap.plot
@@ -64,24 +65,6 @@ class IdentityEncoder(EncDec):
 
     def decode_target_class(self, x: np.array):
         return x
-
-class UMAPMapper():
-
-    def __init__(self, dataset: Dataset, bbox: AbstractBBox, encoder: EncDec):
-        reducer = umap.UMAP(random_state=42)
-        train = dataset.df.loc[:, ['Week5_Covid', 'Week4_Covid', 'Week3_Covid', 'Week5_Mobility', 'Week4_Mobility',
-                    'Week3_Mobility', 'Week2_Mobility', 'Days_passed', 'Duration']]
-
-        encoded_train = encoder.encode(train.values)
-
-        self.encoder = encoder
-        self.projected_train = reducer.fit_transform(encoded_train)
-
-        self.umap = reducer
-
-    def project(self, arr: np.array):
-        encoded_arr = self.encoder.encode(arr)
-        return self.umap.transform(encoded_arr)
 
 class ProbabilitiesWeightBasedGenerator(NeighborhoodGenerator):
 
@@ -213,7 +196,7 @@ def compute_statistics_distance(res, model):
 
     df_15= pd.read_csv('datasets/selected_train_instances_15.csv', sep=';')
 
-    for i in range(0, 15):
+    for i in range(0,2):
         x = df_15.iloc[i, :-1].values
     #x = np.array(['c4', 'c4', 'c4', 'm2', 'm2', 'm3', 'm3', np.float64(364), np.float64(28)], dtype=object)
 
@@ -245,8 +228,9 @@ def compute_statistics_distance(res, model):
 
         neighbs = np.concatenate([ist_neighb, rnd_neighb_z_lbl, cst_neighb_z_lbl, train_dataset], axis=0)
 
-        reducer = umap.UMAP(n_neighbors=30,  random_state=42)
-        proj_neighbs = reducer.fit_transform(neighbs[:, 1: -3])
+        #reducer = umap.UMAP(n_neighbors=300,  random_state=1, min_dist=0.3, metric='manhattan')
+        reducer = TSNE(perplexity=50, metric='manhattan' )
+        proj_neighbs = reducer.fit_transform(neighbs[:, 1: 8])
 
         time_offsets = model_scaler.inverse_transform(neighbs[:,8:10])
         original_features = ordinal_encoder.inverse_transform(neighbs[:, 1:8])
@@ -255,35 +239,31 @@ def compute_statistics_distance(res, model):
         neighbs = np.concatenate([neighbs, proj_neighbs, time_interval], axis=1)
 
         neighbs[:, 8:10] = time_offsets
-        column_names = ['Instance_gen','Week5_Covid', 'Week4_Covid', 'Week3_Covid', 'Week5_Mobility','Week4_Mobility','Week3_Mobility','Week2_Mobility','Days_passed','Duration','Class_label','umap_x','umap_y','Start_Date','End_date']
+        column_names = ['Instance_gen','Week5_Covid', 'Week4_Covid', 'Week3_Covid', 'Week5_Mobility','Week4_Mobility','Week3_Mobility','Week2_Mobility','Days_passed','Duration','Class_label','x','y','Start_Date','End_date']
         df = pd.DataFrame(neighbs, columns=column_names)
         df.to_csv(f'datasets/new_neigh/selected_instances_{i}.csv', index=False)
 
+        alt_df_dist_o = pd.DataFrame(cst_np_mins, columns=['Distance'])
+        alt_df_dist_r = pd.DataFrame(rnd_np_mins, columns=['Distance'])
+        print(alt_df_dist_o.head(10))
+        alt_df_dist_o['source'] = 'Custom'
+        alt_df_dist_r['source'] = 'Random'
+        domain_ = ['Random', 'Custom']
+        range_ = ['#102ce0', '#fa7907']
+        boxplot_df = pd.concat([alt_df_dist_o, alt_df_dist_r], axis=0)
+        box_plot = alt.Chart(boxplot_df).mark_boxplot().encode(
+            alt.X("Distance:Q"),
+            #scale=alt.Scale(zero=False,domain=[2.5,4.5])
+            alt.Y("source:N"),
+            alt.Color("source:N", scale=alt.Scale(domain=domain_, range=range_))
+        ).properties(
+            height=150,
+            width=400,
+            title='Euclidean distances of the neighbourhoods from the instance'
+        )
+        box_plot.save(f'plot/instance_vs_neigh/boxplot_bay_{i}.pdf')
 
-
-
-
-
-
-    alt_df_dist_o = pd.DataFrame(cst_np_mins, columns=['Distance'])
-    alt_df_dist_r = pd.DataFrame(rnd_np_mins, columns=['Distance'])
-    print(alt_df_dist_o.head(10))
-    alt_df_dist_o['source'] = 'Custom'
-    alt_df_dist_r['source'] = 'Random'
-    boxplot_df = pd.concat([alt_df_dist_o, alt_df_dist_r], axis=0)
-    xscale = alt.Scale(domain=(2.44, 2.64))
-    box_plot = alt.Chart(boxplot_df).mark_boxplot().encode(
-        alt.X("Distance:Q", scale=xscale),
-        alt.Y("source:N"),
-        alt.Color("source:N")
-    ).properties(
-        height=150,
-        width=400,
-        title='Euclidean distances from the original data'
-    )
-    #box_plot.save('plot/boxplot_bay.pdf')
-
-def measure_distances(data, encoder, generator, x, label: str, res, model, neighb_size:int=100):
+def measure_distances(data, encoder, generator, x, label: str, res, model, neighb_size:int=1000):
     preprocessor = generator.bbox.bbox.named_steps.get('columntransformer')
     global_mins = []
     for i in range(1):
@@ -329,8 +309,9 @@ def measure_distances(data, encoder, generator, x, label: str, res, model, neigh
         # df_train_umap = pd.DataFrame(projected_train)
         # df_train_umap.to_csv("datasets/train_umap_100.csv")
 
-
-        dists = calculate_distance(neighb_Z, preprocessor.transform(data.df.iloc[:, :-1].values))
+        df_15 = pd.read_csv('datasets/selected_train_instances_15.csv', sep=';')
+        #dists = calculate_distance(neighb_Z, preprocessor.transform(data.df.iloc[:, :-1].values))
+        dists = calculate_distance(neighb_Z, preprocessor.transform(df_15.iloc[5:6, :-1].values))
 
         local_mins = np.min(dists, axis=1)
         global_mins.append(local_mins)
@@ -344,27 +325,35 @@ def measure_distances(data, encoder, generator, x, label: str, res, model, neigh
 def new_lore(res, model):
 
     instance = res.values[5, : -1]
-    print(instance)
-    prediction = model.predict([instance])
-    print(prediction)
+    #print(instance)
+    #prediction = model.predict([instance])
+    #print(prediction)
+
+    df_15 = pd.read_csv('datasets/selected_train_instances_15.csv', sep=';')
+
 
     bbox = sklearn_classifier_bbox.sklearnBBox(model)
+    #data = TabularDataset(data=df_15, class_name="Class_label")
     data = TabularDataset(data=res, class_name='Class_label')
-    x = data.df.iloc[355, :-1].values
+    print(data.df)
+    x = df_15.iloc[5, :-1].values
     #x = data.df.iloc[45, :-1].values
-    print(x)
-    # lore = TabularRandomGeneratorLore(bbox, data)
+    print("instance is:", x)
+    print('model prediction is', model.predict([x]))
+
+    #lore = TabularRandomGeneratorLore(bbox, data)
     encoder = ColumnTransformerEnc(data. descriptor)
     surrogate = DecisionTreeSurrogate()
     generator = ProbabilitiesWeightBasedGenerator(bbox, data, encoder)
     proba_lore = Lore(bbox, data, encoder, generator, surrogate)
 
     print(data.descriptor)
+    #rule = lore.explain(x)
     rule = proba_lore.explain(x)
     print(rule)
-    print('-----')
+    print('----- ')
     print(rule['rule'])
-    print('-----')
+    print('----- counterfactual')
     for cr in rule['counterfactuals']:
         print(cr)
         print('-----')
