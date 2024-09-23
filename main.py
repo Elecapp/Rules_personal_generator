@@ -1,3 +1,6 @@
+import os
+
+import joblib
 import pandas as pd
 import numpy as np
 
@@ -261,7 +264,7 @@ def compute_statistics_distance(res, model):
             width=400,
             title='Euclidean distances of the neighbourhoods from the instance'
         )
-        box_plot.save(f'plot/instance_vs_neigh/boxplot_bay_{i}.pdf')
+#        box_plot.save(f'plot/instance_vs_neigh/boxplot_bay_{i}.pdf')
 
 def measure_distances(data, encoder, generator, x, label: str, res, model, neighb_size:int=1000):
     preprocessor = generator.bbox.bbox.named_steps.get('columntransformer')
@@ -370,10 +373,15 @@ def calculate_distance(X1: np.array, X2: np.array, y_1: np.array = None, y_2: np
     return dists
 
 
-# Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     res = load_data_from_csv()
-    model = create_and_train_model(res)
+    model_pkl_file = 'models/model.pkl'
+    if os.path.exists(model_pkl_file):
+        model = joblib.load(model_pkl_file)
+    else:
+        model = create_and_train_model(res)
+        joblib.dump(model, model_pkl_file)
+
     new_lore(res, model)
     compute_statistics_distance(res, model)
 
