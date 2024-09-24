@@ -173,6 +173,7 @@
                     and </span>
                 </div>
               </div>
+              <hr/>
             </b-card-body>
             <b-card-body v-if="selectedExplanation.explanation.counterfactuals.length > 0">
               <h4>The risk would have been different

@@ -74,11 +74,6 @@ def predict(week5_covid:str='c3', week4_covid:str='c3', week3_covid:str='c3',
         'prediction': prediction[0]
     }
 
-
-def get_symbol(op):
-    sym = re.sub(r'.*\w\s?(\S+)\s?\w.*','\\1',getattr(operator,op).__doc__)
-    if re.match('^\\W+$',sym):return sym
-
 def rule_to_dict(rule):
     premises = [{'attr': e.variable, 'val': e.value, 'op': e.operator2string()}
                 for e in rule.premises]
@@ -99,17 +94,12 @@ def explain(week5_covid:str='c3', week4_covid:str='c3', week3_covid:str='c3',
             week2_mobility:str='m1',days_passed: float=322, duration:float=45):
     prediction = predict(week5_covid, week4_covid, week3_covid, week5_mobility,
                 week4_mobility, week3_mobility, week2_mobility, days_passed, duration)
-    print('prediction', prediction)
+    #print('prediction', prediction)
     instance = [week5_covid, week4_covid, week3_covid, week5_mobility,
                 week4_mobility, week3_mobility, week2_mobility, days_passed, duration]
     explanation = proba_lore.explain(instance)
     # convert explanation to json string using json.dumps
     exp_res = explanation.__str__()
-
-    print('explanation', exp_res)
-    print('explanation', explanation)
-    print('explanation', explanation['rule'])
-    print('counter rules', explanation['counterfactuals'])
 
     rule = rule_to_dict(explanation['rule'])
     crRules = [rule_to_dict(cr) for cr in explanation['counterfactuals']]
