@@ -3,7 +3,7 @@
       <b-row>
         <b-col>
           <b-jumbotron>
-            <template #header>XAI and VA techniques for model explainability</template>
+            <template #header>Explanatory Rules for temporal data using prior knowledge</template>
 
             <template #lead>
               This web application demonstrates the integration of Explainable Artificial
@@ -41,7 +41,7 @@
             <b-form-group id="ig-duration"
                           :label="`Duration (days). Current value: ${form.duration}`"
             label-for="i-duration" :description="`Length in days of the event.`">
-              <b-form-input id="i-duration" v-model="form.duration"
+              <b-form-input id="i-duration" v-model="form.duration" :min="7" :max="147"
               type="range" required></b-form-input>
             </b-form-group>
           </b-col>
@@ -49,7 +49,7 @@
             <b-form-group id="ig-day_passed"
                           :label="`Days passed. Current value: ${form.day_passed}`"
             label-for="i-day_passed" :description="`Days passed since the first date.`">
-              <b-form-input id="i-day_passed" v-model="form.day_passed"
+              <b-form-input id="i-day_passed" v-model="form.day_passed" :min="42" :max="441"
               type="range" required></b-form-input>
             </b-form-group>
           </b-col>

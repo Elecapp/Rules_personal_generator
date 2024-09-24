@@ -9,7 +9,7 @@ import axios from 'axios';
 //   return params;
 // }
 
-const baseURL = 'http://localhost:8000/api';
+const baseURL = '/api';
 // baseURL = 'http://localhost:9992';
 const instance = axios.create({
   baseURL,

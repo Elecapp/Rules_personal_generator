@@ -37,7 +37,7 @@ app = FastAPI(title="Frontend")
 api = FastAPI(title="API", debug=True)
 
 app.mount("/api", api)
-app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="static")
+app.mount("/", StaticFiles(directory="cvd_vue/dist", html=True), name="static")
 
 app.add_middleware(CORSMiddleware,
                    allow_origins=["http://localhost:8080"],
