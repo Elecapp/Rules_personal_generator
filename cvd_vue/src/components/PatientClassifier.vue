@@ -47,10 +47,10 @@
           </b-col>
           <b-col>
             <b-form-group id="ig-day_passed"
-                          :label="`Days passed. Current value: ${form.day_passed}`"
+                          :label="`Days passed. Current value: ${form.days_passed}`"
             label-for="i-day_passed" :description="`Days passed since the first date.`">
-              <b-form-input id="i-day_passed" v-model="form.day_passed" :min="42" :max="441"
-              type="range" required></b-form-input>
+              <b-form-input id="i-day_passed" v-model="form.days_passed" :min="42" :max="441"
+                            type="range" required></b-form-input>
             </b-form-group>
           </b-col>
         </b-row>
@@ -226,7 +226,7 @@ export default {
         m_w3: 'm1',
         m_w2: 'm1',
         duration: 10,
-        day_passed: 10,
+        days_passed: 10,
       },
       covidOptions: [
         { text: 'C1 - Low', value: 'c1' },
@@ -270,7 +270,7 @@ export default {
         week3_mobility: this.form.m_w3,
         week2_mobility: this.form.m_w2,
         duration: this.form.duration,
-        day_passed: this.form.day_passed,
+        days_passed: this.form.days_passed,
       };
       const promises = endpoints.map(e => getSingleEndpoint(queryParams, e));
 
