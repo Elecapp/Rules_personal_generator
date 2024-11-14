@@ -199,7 +199,7 @@ def compute_statistics_distance(res, model):
 
     df_15= pd.read_csv('datasets/selected_train_instances_15.csv', sep=';')
 
-    for i in range(0,2):
+    for i in range(0,15):
         x = df_15.iloc[i, :-1].values
     #x = np.array(['c4', 'c4', 'c4', 'm2', 'm2', 'm3', 'm3', np.float64(364), np.float64(28)], dtype=object)
 
@@ -266,10 +266,10 @@ def compute_statistics_distance(res, model):
         )
 #        box_plot.save(f'plot/instance_vs_neigh/boxplot_bay_{i}.pdf')
 
-def measure_distances(data, encoder, generator, x, label: str, res, model, neighb_size:int=1000):
+def measure_distances(data, encoder, generator, x, label: str, res, model, neighb_size:int=10000):
     preprocessor = generator.bbox.bbox.named_steps.get('columntransformer')
     global_mins = []
-    for i in range(1):
+    for i in range(100):
         # project the instance x and create a neighborhood of given size
         neighb_ohe = generator.generate(encoder.encode(x.reshape(1, -1))[0], neighb_size, data.descriptor, encoder)
         # decode the neighborhood
@@ -313,8 +313,8 @@ def measure_distances(data, encoder, generator, x, label: str, res, model, neigh
         # df_train_umap.to_csv("datasets/train_umap_100.csv")
 
         df_15 = pd.read_csv('datasets/selected_train_instances_15.csv', sep=';')
-        #dists = calculate_distance(neighb_Z, preprocessor.transform(data.df.iloc[:, :-1].values))
-        dists = calculate_distance(neighb_Z, preprocessor.transform(df_15.iloc[5:6, :-1].values))
+        dists = calculate_distance(neighb_Z, preprocessor.transform(data.df.iloc[:, :-1].values))
+        #dists = calculate_distance(neighb_Z, preprocessor.transform(df_15.iloc[5:6, :-1].values))
 
         local_mins = np.min(dists, axis=1)
         global_mins.append(local_mins)
@@ -329,22 +329,23 @@ def new_lore(res, model):
 
     instance = res.values[5, : -1]
     #print(instance)
-    #prediction = model.predict([instance])
+    prediction = model.predict([instance])
+
     #print(prediction)
 
     df_15 = pd.read_csv('datasets/selected_train_instances_15.csv', sep=';')
 
 
     bbox = sklearn_classifier_bbox.sklearnBBox(model)
-    #data = TabularDataset(data=df_15, class_name="Class_label")
-    data = TabularDataset(data=res, class_name='Class_label')
+    data = TabularDataset(data=df_15, class_name="Class_label")
+    #data = TabularDataset(data=res, class_name='Class_label')
     print(data.df)
-    x = df_15.iloc[5, :-1].values
+    x = df_15.iloc[7, :-1].values #7
     #x = data.df.iloc[45, :-1].values
     print("instance is:", x)
     print('model prediction is', model.predict([x]))
 
-    #lore = TabularRandomGeneratorLore(bbox, data)
+    lore = TabularRandomGeneratorLore(bbox, data)
     encoder = ColumnTransformerEnc(data. descriptor)
     surrogate = DecisionTreeSurrogate()
     generator = ProbabilitiesWeightBasedGenerator(bbox, data, encoder)
@@ -383,7 +384,7 @@ if __name__ == '__main__':
         joblib.dump(model, model_pkl_file)
 
     new_lore(res, model)
-    compute_statistics_distance(res, model)
+    #compute_statistics_distance(res, model)
 
    #UMAPMapper()
 
