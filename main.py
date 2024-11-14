@@ -346,7 +346,7 @@ def new_lore(res, model):
     print('model prediction is', model.predict([x]))
 
     lore = TabularRandomGeneratorLore(bbox, data)
-    encoder = ColumnTransformerEnc(data. descriptor)
+    encoder = ColumnTransformerEnc(data.descriptor)
     surrogate = DecisionTreeSurrogate()
     generator = ProbabilitiesWeightBasedGenerator(bbox, data, encoder)
     proba_lore = Lore(bbox, data, encoder, generator, surrogate)
