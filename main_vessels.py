@@ -116,22 +116,22 @@ def create_and_train_model(df):
     print(model.score(data_test, target_test))
     return model
 
-def new_lore(res,model):
+
+def new_lore(data, bb):
     features = ['SpeedMinimum', 'SpeedQ1', 'SpeedMedian', 'SpeedQ3', 'DistanceStartShapeCurvature',
                 'DistStartTrendAngle', 'DistStartTrendDevAmplitude', 'MaxDistPort', 'MinDistPort', 'class N']
-    res = res.loc[:, features]
-    instance = res.values[5, : -1]
+    data = data.loc[:, features]
+    #instance = data.values[5, : -1]
     #prediction = model.predict([instance])
-    instance = res.iloc[10]
-    bbox = sklearn_classifier_bbox.sklearnBBox(model)
+    instance = data.iloc[10, :-1].values
+    ds = TabularDataset(data=data, class_name='class N')
+    bbox = sklearn_classifier_bbox.sklearnBBox(bb)
 
     print("instance is:", instance)
-    x = pd.DataFrame([instance], columns=features)
-    x['class N'] = pd.cut(x['class N'], bins=6, labels=['1', '2', '3','4','5','6'])
+    x = instance
     #print('model prediction is', model.predict([x]))
-    data = TabularDataset(data=x, class_name="class N")
     #lore = TabularRandomGeneratorLore(bbox, x)
-    encoder = ColumnTransformerEnc(data.descriptor)
+    encoder = ColumnTransformerEnc(ds.descriptor)
     surrogate = DecisionTreeSurrogate()
     generator = NewGen(bbox, data, encoder)
     proba_lore = Lore(bbox, data, encoder, generator, surrogate)
