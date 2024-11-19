@@ -44,7 +44,7 @@ class NewGen(NeighborhoodGenerator):
         self.preprocess = bbox.bbox.named_steps.get('columntransformer')
         self.gen_data = None
 
-    def perturb(self, x, num_instances):
+    def generate(self, x, num_instances: int, descriptor: dict, encoder):
         perturbed_arrays = []
         for _ in range(num_instances):
             perturbed_arr = x[:]
@@ -63,28 +63,24 @@ class NewGen(NeighborhoodGenerator):
 
             perturbed_arrays.append(perturbed_arr)
         self.gen_data = perturbed_arrays
-        return perturbed_arrays
+        self.neighborhood = encoder.encode(perturbed_arrays)
 
-
-        x = [0.03, 15.51, 15.91, 16.52, 0.004, 0.28, 0.98, 29.28, -1.86]
-        perturber = NewGen(bbox, data, encoder)
-        n = 10
-        perturbed_arrays = perturber.perturb(x=x, num_instances=n)
-        for perturbed_arr in perturbed_arrays:
-            print(perturbed_arr)
-
+        return self.neighborhood
 
 def load_data_from_csv():
     df = pd.read_csv("datasets/final_df_addedfeat.csv")
-    return df
+    features = ['SpeedMinimum', 'SpeedQ1', 'SpeedMedian', 'SpeedQ3', 'DistanceStartShapeCurvature',
+                'DistStartTrendAngle', 'DistStartTrendDevAmplitude', 'MaxDistPort', 'MinDistPort', 'class N']
+    df['class N'] = df['class N'].astype('str')
+
+    return df[features]
 
 def create_and_train_model(df):
 
-    features = ['SpeedMinimum', 'SpeedQ1', 'SpeedMedian', 'SpeedQ3', 'DistanceStartShapeCurvature',
-                'DistStartTrendAngle', 'DistStartTrendDevAmplitude', 'MaxDistPort', 'MinDistPort']
-    label = "class N"
+    label = 'class N'
+    features = df.columns[:-1]
 
-    X_feat = df.loc[:, features]
+    X_feat = df[features]
     y = df[label].values
 
     numerical_columns_selector = selector(dtype_exclude=object)
@@ -99,7 +95,7 @@ def create_and_train_model(df):
     preprocessor = ColumnTransformer(
         [
             ("ordinal-encoder", enc, categorical_columns),
-            ("standard_scaler", numerical_preprocessor, numerical_columns),
+            ("standard_scaler", numerical_preprocessor, list(range(0,9))),
         ]
     )
 
@@ -124,8 +120,9 @@ def new_lore(data, bb):
     #instance = data.values[5, : -1]
     #prediction = model.predict([instance])
     instance = data.iloc[10, :-1].values
-    ds = TabularDataset(data=data, class_name='class N')
+    ds = TabularDataset(data=data, class_name='class N', categorial_columns=['class N'])
     bbox = sklearn_classifier_bbox.sklearnBBox(bb)
+    print(bb.predict([instance]))
 
     print("instance is:", instance)
     x = instance
@@ -133,9 +130,9 @@ def new_lore(data, bb):
     #lore = TabularRandomGeneratorLore(bbox, x)
     encoder = ColumnTransformerEnc(ds.descriptor)
     surrogate = DecisionTreeSurrogate()
-    generator = NewGen(bbox, data, encoder)
-    proba_lore = Lore(bbox, data, encoder, generator, surrogate)
-    rule = proba_lore.explain((x.values.reshape(1, -1)))
+    generator = NewGen(bbox, ds, encoder)
+    proba_lore = Lore(bbox, ds, encoder, generator, surrogate)
+    rule = proba_lore.explain(x)
 
     print(rule)
     print('----- ')
@@ -151,5 +148,9 @@ if __name__ == '__main__':
     res = load_data_from_csv()
     model = create_and_train_model(res)
     print(model)
+    label = 'class N'
+    features = res.columns[:-1]
+    instance = res[features].loc[10].values
+    print('prediction', model.predict([instance]))
 
     new_lore(res, model)
