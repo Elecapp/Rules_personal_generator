@@ -150,7 +150,7 @@ if __name__ == '__main__':
     print(model)
     label = 'class N'
     features = res.columns[:-1]
-    instance = res[features].loc[10].values
+    instance = res[features].loc[34].values
     print('prediction', model.predict([instance]))
 
     new_lore(res, model)
