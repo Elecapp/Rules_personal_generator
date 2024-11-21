@@ -47,21 +47,23 @@ class NewGen(NeighborhoodGenerator):
     def generate(self, x, num_instances:int=1000, descriptor: dict=None, encoder=None):
         perturbed_arrays = []
         for _ in range(num_instances):
-            perturbed_arr = x[:]
+            # make a deep copy of x in the variable perturbed_arr
+            perturbed_arr = x.copy()
 
-            for val in range(0, int(len(x))):
-                perturbed_arr[0] = random.uniform(0, 17.93)
-                perturbed_arr[1] = random.uniform(perturbed_arr[0], 20.12)  # always greater than minspeed
-                perturbed_arr[2] = random.uniform(perturbed_arr[1], 20.75)  # always greater than speedQ1
-                perturbed_arr[3] = random.uniform(perturbed_arr[2], 21.65)  # always greater than speedMedian
-                perturbed_arr[4] = random.uniform(0, 2.24)
-                perturbed_arr[5] = random.uniform(-0.24, 0.36)
-                perturbed_arr[6] = random.uniform(-2.80, 1.77)
-                perturbed_arr[7] = random.uniform(0.12, 282.26)
-                perturbed_arr[8] = math.log10(random.uniform(math.exp(-3.05), perturbed_arr[
-                    7]))  # inverse log transform, identify value less than max dist, then log transform again
 
-            perturbed_arrays.append(perturbed_arr)
+            perturbed_arr[0] = random.uniform(0, 17.93)
+            perturbed_arr[1] = random.uniform(perturbed_arr[0], 20.12)  # always greater than minspeed
+            perturbed_arr[2] = random.uniform(perturbed_arr[1], 20.75)  # always greater than speedQ1
+            perturbed_arr[3] = random.uniform(perturbed_arr[2], 21.65)  # always greater than speedMedian
+            perturbed_arr[4] = random.uniform(0, 2.24)
+            perturbed_arr[5] = random.uniform(-0.24, 0.36)
+            perturbed_arr[6] = random.uniform(-2.80, 1.77)
+            perturbed_arr[7] = random.uniform(0.12, 282.26)
+            perturbed_arr[8] = math.log10(random.uniform(math.exp(-3.05), perturbed_arr[
+                7]))  # inverse log transform, identify value less than max dist, then log transform again
+
+            perturbed_arrays.append(perturbed_arr[:])
+
         self.gen_data = perturbed_arrays
         self.neighborhood = encoder.encode(perturbed_arrays)
 
@@ -81,7 +83,7 @@ def create_and_train_model(df):
     features = df.columns[:-1]
 
     X_feat = df[features]
-    y = df[label].values
+    y = df[label].values.astype('str')
 
     numerical_columns_selector = selector(dtype_exclude=object)
     categorical_columns_selector = selector(dtype_include=object)
@@ -131,14 +133,14 @@ def new_lore(data, bb):
     encoder = ColumnTransformerEnc(ds.descriptor)
     surrogate = DecisionTreeSurrogate()
     generator = NewGen(bbox, ds, encoder)
-    neigh = generator.generate(x,10000,ds.descriptor,encoder)
     proba_lore = Lore(bbox, ds, encoder, generator, surrogate)
-    rule = proba_lore.explain(x)
+    print('Prediction:', bb.predict([x]))
 
+    rule = proba_lore.explain(x)
+    print('Rule:', rule['rule'])
     print(rule)
     print('----- ')
-    print(rule['rule'])
-    print('----- counterfactual')
+    print('----- counterfactuals ')
     for cr in rule['counterfactuals']:
         print(cr)
         print('-----')
