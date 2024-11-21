@@ -44,7 +44,7 @@ class NewGen(NeighborhoodGenerator):
         self.preprocess = bbox.bbox.named_steps.get('columntransformer')
         self.gen_data = None
 
-    def generate(self, x, num_instances: int, descriptor: dict, encoder):
+    def generate(self, x, num_instances:int=1000, descriptor: dict=None, encoder=None):
         perturbed_arrays = []
         for _ in range(num_instances):
             perturbed_arr = x[:]
@@ -131,6 +131,7 @@ def new_lore(data, bb):
     encoder = ColumnTransformerEnc(ds.descriptor)
     surrogate = DecisionTreeSurrogate()
     generator = NewGen(bbox, ds, encoder)
+    neigh = generator.generate(x,10000,ds.descriptor,encoder)
     proba_lore = Lore(bbox, ds, encoder, generator, surrogate)
     rule = proba_lore.explain(x)
 
@@ -152,5 +153,6 @@ if __name__ == '__main__':
     features = res.columns[:-1]
     instance = res[features].loc[34].values
     print('prediction', model.predict([instance]))
+
 
     new_lore(res, model)
