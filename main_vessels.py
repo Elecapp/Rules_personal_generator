@@ -46,6 +46,7 @@ class NewGen(NeighborhoodGenerator):
 
     def generate(self, x, num_instances:int=1000, descriptor: dict=None, encoder=None):
         perturbed_arrays = []
+        perturbed_arrays.append(x.copy())
         for _ in range(num_instances):
             # make a deep copy of x in the variable perturbed_arr
             perturbed_arr = x.copy()
@@ -70,10 +71,20 @@ class NewGen(NeighborhoodGenerator):
         return self.neighborhood
 
 def load_data_from_csv():
+    class_names = {
+        '1': 'Straight',
+        '2': 'Curved',
+        '3': 'Trawling',
+        '4': 'Port connected',
+        '5': 'Near port',
+        '6': 'Anchored',
+    }
+
+
     df = pd.read_csv("datasets/final_df_addedfeat.csv")
     features = ['SpeedMinimum', 'SpeedQ1', 'SpeedMedian', 'SpeedQ3', 'DistanceStartShapeCurvature',
                 'DistStartTrendAngle', 'DistStartTrendDevAmplitude', 'MaxDistPort', 'MinDistPort', 'class N']
-    df['class N'] = df['class N'].astype('str')
+    df['class N'] = df['class N'].astype(str)
 
     return df[features]
 
@@ -151,10 +162,5 @@ if __name__ == '__main__':
     res = load_data_from_csv()
     model = create_and_train_model(res)
     print(model)
-    label = 'class N'
-    features = res.columns[:-1]
-    instance = res[features].loc[34].values
-    print('prediction', model.predict([instance]))
-
 
     new_lore(res, model)
