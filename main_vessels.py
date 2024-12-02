@@ -60,18 +60,23 @@ class GenerateDecisionTrees:
 
 
 class NewGen(NeighborhoodGenerator):
-    def __init__(self, bbox: AbstractBBox, dataset: Dataset, encoder: EncDec, ocr=0.1):
+    def __init__(self, bbox: AbstractBBox, dataset: Dataset, encoder: EncDec, classifiers: dict, ocr=0.1):
         super().__init__(bbox, dataset, encoder, ocr)
         self.neighborhood = None
         self.preprocess = bbox.bbox.named_steps.get('columntransformer')
         self.gen_data = None
+        self.classifiers = classifiers
 
 
-    def generate(self, x, num_instances:int=1000, descriptor: dict=None, encoder=None):
+    def generate(self, x, num_instances:int=1000, descriptor: dict=None, encoder=None, list=None):
         perturbed_arrays = []
         perturbed_arrays.append(x.copy())
+
+
+
+        '''
         for _ in range(num_instances):
-            # make a deep copy of x in the variable perturbed_arr
+        # make a deep copy of x in the variable perturbed_arr
             perturbed_arr = x.copy()
             perturbed_arr[0] = random.uniform(0, 17.93)
             perturbed_arr[1] = random.uniform(perturbed_arr[0], 20.12)  # always greater than minspeed
@@ -84,15 +89,16 @@ class NewGen(NeighborhoodGenerator):
             perturbed_arr[8] = math.log10(random.uniform(math.exp(-3.05), perturbed_arr[
                 7]))  # inverse log transform, identify value less than max dist, then log transform again
             perturbed_arrays.append(perturbed_arr[:])
-        self.gen_data = perturbed_arrays
-        self.neighborhood = encoder.encode(perturbed_arrays)
+        '''
+        for _ in range(num_instances):
+            perturbed_x = self.perturbate(x)
+            perturbed_arrays.append(perturbed_x)
+        return perturbed_arrays
 
-    def perturbate(self, instance, bb, classifiers):
-        class_label = bb.predict([instance])[0]
-        chosen_dt = classifiers[class_label]
-        fig = plt.figure(figsize=(25, 20))
-        _ = tree.plot_tree(chosen_dt, feature_names=X_feat.columns, filled=True)
-        fig.savefig("plot/decision_tree.png")
+    def perturbate(self, instance):
+        class_label = self.bbox.predict([instance])[0]
+        chosen_dt = self.classifiers[class_label]
+
         # Get the decision path and leaf node for the instance
         decision_path = chosen_dt.decision_path(instance.reshape(1,-1))
         leaf_id = chosen_dt.apply(instance.reshape(1,-1))[0]
@@ -106,10 +112,26 @@ class NewGen(NeighborhoodGenerator):
         for node in node_indices:
             if feature[node] != -2:  # -2 indicates a leaf node
                 influencing_features.append(
-                    (X_feat.columns[feature[node]], threshold[node], instance[feature[node]], instance[feature[node]] < threshold[node])
+                    (X_feat.columns[feature[node]], threshold[node], instance[feature[node]], instance[feature[node]] < threshold[node], node)
                 )
+        # extract the feature indices
+        feature_indices = [f[4] for f in influencing_features]
 
-        return decision_path, leaf_id, feature, threshold, influencing_features
+        # make a deep copy of x in the variable perturbed_arr
+        perturbed_arr = instance.copy()
+        perturbed_arr[0] = random.uniform(0, 17.93)
+        perturbed_arr[1] = random.uniform(perturbed_arr[0], 20.12)  # always greater than minspeed
+        perturbed_arr[2] = random.uniform(perturbed_arr[1], 20.75)  # always greater than speedQ1
+        perturbed_arr[3] = random.uniform(perturbed_arr[2], 21.65)  # always greater than speedMedian
+        perturbed_arr[4] = random.uniform(0, 2.24)
+        perturbed_arr[5] = random.uniform(-0.24, 0.36)
+        perturbed_arr[6] = random.uniform(-2.80, 1.77)
+        perturbed_arr[7] = random.uniform(0.12, 282.26)
+        perturbed_arr[8] = math.log10(random.uniform(math.exp(-3.05), perturbed_arr[7]))  # inverse log transform, identify value less than max dist, then log transform again
+
+        mask_indices = [perturbed_arr[i] if i in feature_indices else instance[i] for i, v in enumerate(instance)]
+
+        return mask_indices
 
 
 
@@ -119,7 +141,7 @@ class NewGen(NeighborhoodGenerator):
 
         '''
         in the class there are already the stored decision tree, 
-        i retrieve the decision tree
+        I retrieve the decision tree
         '''
         '''
         New alg description:
@@ -243,17 +265,17 @@ def new_lore(data, bb):
 
     print("instance is:", instance)
     x = instance
+    classifiers_generator = GenerateDecisionTrees()
+    classifiers =classifiers_generator.decision_trees(X_feat, y)
+
+
 
 
     #print('model prediction is', model.predict([x]))
     #lore = TabularRandomGeneratorLore(bbox, x)
     encoder = ColumnTransformerEnc(ds.descriptor)
     surrogate = DecisionTreeSurrogate()
-    generator = NewGen(bbox, ds, encoder)
-    dt_model = GenerateDecisionTrees(test_size=0.3, random_state=42)
-    trained_dt = dt_model.decision_trees(X_feat, y)
-    path = generator.perturbate(x, bbox, trained_dt)
-
+    generator = NewGen(bbox, ds, encoder, classifiers)
 
 
     proba_lore = Lore(bbox, ds, encoder, generator, surrogate)
