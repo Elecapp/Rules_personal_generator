@@ -68,32 +68,15 @@ class NewGen(NeighborhoodGenerator):
         self.classifiers = classifiers
 
 
-    def generate(self, x, num_instances:int=1000, descriptor: dict=None, encoder=None, list=None):
-        perturbed_arrays = []
-        perturbed_arrays.append(x.copy())
+    def generate(self, x, num_instances:int=10000, descriptor: dict=None, encoder=None, list=None):
+        perturbed_list = []
+        perturbed_list.append(x.copy())
 
-
-
-        '''
-        for _ in range(num_instances):
-        # make a deep copy of x in the variable perturbed_arr
-            perturbed_arr = x.copy()
-            perturbed_arr[0] = random.uniform(0, 17.93)
-            perturbed_arr[1] = random.uniform(perturbed_arr[0], 20.12)  # always greater than minspeed
-            perturbed_arr[2] = random.uniform(perturbed_arr[1], 20.75)  # always greater than speedQ1
-            perturbed_arr[3] = random.uniform(perturbed_arr[2], 21.65)  # always greater than speedMedian
-            perturbed_arr[4] = random.uniform(0, 2.24)
-            perturbed_arr[5] = random.uniform(-0.24, 0.36)
-            perturbed_arr[6] = random.uniform(-2.80, 1.77)
-            perturbed_arr[7] = random.uniform(0.12, 282.26)
-            perturbed_arr[8] = math.log10(random.uniform(math.exp(-3.05), perturbed_arr[
-                7]))  # inverse log transform, identify value less than max dist, then log transform again
-            perturbed_arrays.append(perturbed_arr[:])
-        '''
         for _ in range(num_instances):
             perturbed_x = self.perturbate(x)
-            perturbed_arrays.append(perturbed_x)
-        return perturbed_arrays
+            perturbed_list.append(perturbed_x)
+        self.neighborhood = self.encoder.encode(perturbed_list)
+        return self.neighborhood
 
     def perturbate(self, instance):
         class_label = self.bbox.predict([instance])[0]
@@ -130,8 +113,9 @@ class NewGen(NeighborhoodGenerator):
         perturbed_arr[8] = math.log10(random.uniform(math.exp(-3.05), perturbed_arr[7]))  # inverse log transform, identify value less than max dist, then log transform again
 
         mask_indices = [perturbed_arr[i] if i in feature_indices else instance[i] for i, v in enumerate(instance)]
+        mask_indices_arr = np.array(mask_indices, dtype=float)
 
-        return mask_indices
+        return mask_indices_arr
 
 
 
@@ -258,7 +242,7 @@ def new_lore(data, bb):
     data = data.loc[:, features]
     #instance = data.values[5, : -1]
     #prediction = model.predict([instance])
-    instance = data.iloc[50, :-1].values
+    instance = data.iloc[67, :-1].values
     ds = TabularDataset(data=data, class_name='class N', categorial_columns=['class N'])
     bbox = sklearn_classifier_bbox.sklearnBBox(bb)
     print(bb.predict([instance]))
@@ -266,17 +250,13 @@ def new_lore(data, bb):
     print("instance is:", instance)
     x = instance
     classifiers_generator = GenerateDecisionTrees()
-    classifiers =classifiers_generator.decision_trees(X_feat, y)
-
-
-
+    classifiers = classifiers_generator.decision_trees(X_feat, y)
 
     #print('model prediction is', model.predict([x]))
     #lore = TabularRandomGeneratorLore(bbox, x)
     encoder = ColumnTransformerEnc(ds.descriptor)
     surrogate = DecisionTreeSurrogate()
     generator = NewGen(bbox, ds, encoder, classifiers)
-
 
     proba_lore = Lore(bbox, ds, encoder, generator, surrogate)
     print('Prediction:', bb.predict([x]))
