@@ -31,6 +31,7 @@ import math
 from lore_sa.dataset import TabularDataset, Dataset
 from lore_sa.bbox import sklearn_classifier_bbox, AbstractBBox
 from lore_sa.neighgen import RandomGenerator
+from lore_sa.neighgen import GeneticGenerator
 from lore_sa.neighgen.neighborhood_generator import NeighborhoodGenerator
 from lore_sa.surrogate import DecisionTreeSurrogate
 from lore_sa.encoder_decoder import EncDec, ColumnTransformerEnc
@@ -60,12 +61,13 @@ class GenerateDecisionTrees:
 
 
 class NewGen(NeighborhoodGenerator):
-    def __init__(self, bbox: AbstractBBox, dataset: Dataset, encoder: EncDec, classifiers: dict, ocr=0.1):
+    def __init__(self, bbox: AbstractBBox, dataset: Dataset, encoder: EncDec, classifiers: dict, prob_of_mutation: float, ocr=0.1 ):
         super().__init__(bbox, dataset, encoder, ocr)
         self.neighborhood = None
         self.preprocess = bbox.bbox.named_steps.get('columntransformer')
         self.gen_data = None
         self.classifiers = classifiers
+        self.prob_of_mutation = prob_of_mutation
 
 
     def generate(self, x, num_instances:int=10000, descriptor: dict=None, encoder=None, list=None):
@@ -112,7 +114,7 @@ class NewGen(NeighborhoodGenerator):
         perturbed_arr[7] = random.uniform(0.12, 282.26)
         perturbed_arr[8] = math.log10(random.uniform(math.exp(-3.05), perturbed_arr[7]))  # inverse log transform, identify value less than max dist, then log transform again
 
-        mask_indices = [perturbed_arr[i] if i in feature_indices else instance[i] for i, v in enumerate(instance)]
+        mask_indices = [perturbed_arr[i] if (i in feature_indices or random.random() < self.prob_of_mutation) else instance[i] for i, v in enumerate(instance)] # change importance feature and some of the feature randomly based on prob
         mask_indices_arr = np.array(mask_indices, dtype=float)
 
         return mask_indices_arr
@@ -235,6 +237,39 @@ def create_and_train_model(df):
     print(model.score(data_test, target_test))
     return model, X_feat, y
 
+def generate_neighborhood(x, model, data, X_feat, y):
+    ds = TabularDataset(data=data, class_name='class N',categorial_columns=['class N'])
+    encoder = ColumnTransformerEnc(ds.descriptor)
+    bbox = sklearn_classifier_bbox.sklearnBBox(model)
+    #generate random neigh
+    random_n_generator = RandomGenerator(bbox, ds, encoder)
+    random_n = random_n_generator.generate(x,100, ds.descriptor, encoder)
+
+    # generate custom neigh
+    classifiers_generator = GenerateDecisionTrees()
+    classifiers = classifiers_generator.decision_trees(X_feat, y)
+    custom_generator = NewGen(bbox, ds, encoder, classifiers, 0.05)
+    custom_n = custom_generator.generate(x, 100, ds.descriptor,encoder)
+
+    #generate genetic neigh
+    genetic_n_generator = GeneticGenerator(bbox, ds, encoder)
+    genetic_n = genetic_n_generator.generate(x,100, ds.descriptor, encoder)
+    print(genetic_n)
+
+    return random_n, custom_n, genetic_n
+
+def compute_distance(X1,X2, metric:str='euclidean'):
+    dists = pairwise_distances(X1, X2, metric=metric)
+    return dists
+
+def measure_distance(random_n, custom_n, genetic_n, an_array): # an_array can be a point or X_feat
+    random_distance = measure_distance(random_n, an_array)
+    custom_distance = measure_distance(custom_n, an_array)
+    genetic_distance = measure_distance(genetic_n, an_array)
+
+
+
+
 
 def new_lore(data, bb):
     features = ['SpeedMinimum', 'SpeedQ1', 'SpeedMedian', 'SpeedQ3', 'DistanceStartShapeCurvature',
@@ -242,7 +277,7 @@ def new_lore(data, bb):
     data = data.loc[:, features]
     #instance = data.values[5, : -1]
     #prediction = model.predict([instance])
-    instance = data.iloc[67, :-1].values
+    instance = data.iloc[9, :-1].values
     ds = TabularDataset(data=data, class_name='class N', categorial_columns=['class N'])
     bbox = sklearn_classifier_bbox.sklearnBBox(bb)
     print(bb.predict([instance]))
@@ -256,7 +291,9 @@ def new_lore(data, bb):
     #lore = TabularRandomGeneratorLore(bbox, x)
     encoder = ColumnTransformerEnc(ds.descriptor)
     surrogate = DecisionTreeSurrogate()
-    generator = NewGen(bbox, ds, encoder, classifiers)
+
+    generator = NewGen(bbox, ds, encoder, classifiers, 0.05)
+
 
     proba_lore = Lore(bbox, ds, encoder, generator, surrogate)
     print('Prediction:', bb.predict([x]))
@@ -276,4 +313,9 @@ if __name__ == '__main__':
     res = load_data_from_csv()
     model, X_feat, y = create_and_train_model(res)
     print(model)
-    new_lore(res, model)
+    #new_lore(res, model)
+    random_n, custom_n, genetic_n = generate_neighborhood(res.iloc[9, :-1].values, model, res, X_feat, y)
+
+
+
+
