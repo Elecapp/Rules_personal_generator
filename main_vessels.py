@@ -21,6 +21,7 @@ import umap.umap_ as umap
 #import umap.plot
 
 import matplotlib
+
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 
@@ -241,9 +242,8 @@ def create_and_train_model(df):
 
     _ = model.fit(data_train, target_train)
 
-    y_predict = model.predict(data_test)
-    print(model.score(data_test, target_test))
-    return model, X_feat, y
+    print('Model score: ', model.score(data_test, target_test))
+    return model, data_train, target_train
 
 
 
@@ -273,13 +273,15 @@ def visualize_neighborhoods(random_distance, custom_distance, genetic_distance):
         )
     directory = "plot"
     chart_path = os.path.join(directory, "chart.png")
-    chart.save(chart_path, dpi=250)
+    alt.renderers.enable("browser")
+    # chart.save(chart_path, dpi=250)
     return chart
 
 
 
 
 def generate_neighborhood(x, model, data, X_feat, y, save_dir):
+    NUM_INSTANCES = 1000
 
     # Check if the neighborhoods already exist
     ds = TabularDataset(data=data, class_name='class N',categorial_columns=['class N'])
@@ -287,17 +289,17 @@ def generate_neighborhood(x, model, data, X_feat, y, save_dir):
     bbox = sklearn_classifier_bbox.sklearnBBox(model)
     #generate random neigh
     random_n_generator = RandomGenerator(bbox, ds, encoder)
-    random_n = random_n_generator.generate(x, 100, ds.descriptor, encoder)
+    random_n = random_n_generator.generate(x, NUM_INSTANCES, ds.descriptor, encoder)
 
     # generate custom neigh
     classifiers_generator = GenerateDecisionTrees()
     classifiers = classifiers_generator.decision_trees(X_feat, y)
     custom_generator = NewGen(bbox, ds, encoder, classifiers, 0.05)
-    custom_n = custom_generator.generate(x, 100, ds.descriptor,encoder)
+    custom_n = custom_generator.generate(x, NUM_INSTANCES, ds.descriptor, encoder)
 
     #generate genetic neigh
     genetic_n_generator = GeneticGenerator(bbox, ds, encoder)
-    genetic_n = genetic_n_generator.generate(x,100, ds.descriptor, encoder)
+    genetic_n = genetic_n_generator.generate(x, NUM_INSTANCES, ds.descriptor, encoder)
     print(genetic_n)
 
     return random_n, custom_n, genetic_n
@@ -316,7 +318,7 @@ def measure_distance(random_n, custom_n, genetic_n, an_array):# an_array can be 
     custom_distance = compute_distance(custom_n, an_array)
     genetic_distance = compute_distance(genetic_n, an_array)
 
-    return random_mins, custom_mins, genetic_mins
+    return random_distance, custom_distance, genetic_distance
 
 
 
@@ -373,11 +375,11 @@ if __name__ == '__main__':
     #new_lore(res, model)
     #instance = res.iloc[9, :-1].values
     #random_n, custom_n, genetic_n = generate_neighborhood(instance, model, res, X_feat, y)
-    random_distance, custom_distance, genetic_distance = measure_distance(random_n, custom_n, genetic_n,  X_feat.to_numpy())
+    random_distance, custom_distance, genetic_distance = measure_distance(random_n, custom_n, genetic_n,  instance)
     #print(random_distance, custom_distance, genetic_distance)
     #Example: extracting a column
     chart = visualize_neighborhoods(random_distance, custom_distance, genetic_distance)
-
+    chart.show()
 
 
 
