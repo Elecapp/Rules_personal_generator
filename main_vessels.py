@@ -247,7 +247,7 @@ def create_and_train_model(df):
 
 
 
-def visualize_neighborhoods(random_distance, custom_distance, genetic_distance):
+def visualize_neighborhoods(random_distance, custom_distance, genetic_distance, title='Neighborhood Boxplots'):
 
     neighborhoods=[]
     for data, label in zip([random_distance, custom_distance, genetic_distance],['Random', 'Custom', 'Genetic']):
@@ -267,7 +267,7 @@ def visualize_neighborhoods(random_distance, custom_distance, genetic_distance):
             y=alt.Y('Neighborhood:N'),
             color=alt.Color('Neighborhood:N', legend=alt.Legend(title='Neighborhood'))
         ).properties(
-            title='Neighborhood Boxplots',
+            title=title,
             width=600,
             height=400
         )
@@ -306,13 +306,12 @@ def generate_neighborhood(x, model, data, X_feat, y, save_dir):
 
 
 
-def compute_distance(X1,X2, metric:str='euclidean'):
+def compute_distance(X1, X2, metric:str='euclidean'):
     dists = pairwise_distances(X1, X2, metric=metric)
+    dists = np.min(dists, axis=1)
     return dists
 
 def measure_distance(random_n, custom_n, genetic_n, an_array):# an_array can be a point or X_feat
-    if len(an_array.shape) == 1:
-        an_array = an_array.reshape(1, -1)
     #an_array = an_array.reshape(1, -1)
     random_distance = compute_distance(random_n, an_array)
     custom_distance = compute_distance(custom_n, an_array)
@@ -375,10 +374,14 @@ if __name__ == '__main__':
     #new_lore(res, model)
     #instance = res.iloc[9, :-1].values
     #random_n, custom_n, genetic_n = generate_neighborhood(instance, model, res, X_feat, y)
-    random_distance, custom_distance, genetic_distance = measure_distance(random_n, custom_n, genetic_n,  instance)
+    random_distance_inst, custom_distance_inst, genetic_distance_inst = measure_distance(random_n, custom_n, genetic_n,  instance.reshape(1, -1))
     #print(random_distance, custom_distance, genetic_distance)
+
+    random_distance_train, custom_distance_train, genetic_distance_train = measure_distance(random_n, custom_n, genetic_n, X_feat.values)
+    visualize_neighborhoods(random_distance_train, custom_distance_train, genetic_distance_train, title='Distances from Trainset').show()
+
     #Example: extracting a column
-    chart = visualize_neighborhoods(random_distance, custom_distance, genetic_distance)
+    chart = visualize_neighborhoods(random_distance_inst, custom_distance_inst, genetic_distance_inst, title='Distances from Instance')
     chart.show()
 
 
