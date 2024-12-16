@@ -247,34 +247,24 @@ def create_and_train_model(df):
 
 
 
-def save_neighborhood(neighborhood, file_path):
-    """Save neighborhood to a file."""
-    with open(file_path, 'wb') as f:
-        pickle.dump(neighborhood, f)
-
-def load_neighborhood(file_path):
-    """Load neighborhood from a file."""
-    with open(file_path, 'rb') as f:
-        return pickle.load(f)
-
-def visualize_neighborhoods(file_path):
-    random_n, custom_n, genetic_n=load_neighborhood(file_path)
+def visualize_neighborhoods(random_distance, custom_distance, genetic_distance):
 
     neighborhoods=[]
-    for data, label in zip([random_n, custom_n, genetic_n],['Random', 'Custom', 'Genetic']):
+    for data, label in zip([random_distance, custom_distance, genetic_distance],['Random', 'Custom', 'Genetic']):
         df = pd.DataFrame(data)
         df['Neighborhood'] = label
         neighborhoods.append(df)
 
         # Combine all data
     combined_df = pd.concat(neighborhoods, ignore_index=True)
+    combined_df.rename(columns={0: 'Distance'}, inplace=True)
 
-        # df for Altair
-    melted_df = combined_df.melt(id_vars=['Neighborhood'], var_name='Feature', value_name='Value')
 
-    chart = alt.Chart(melted_df).mark_boxplot().encode(
-            y=alt.Y('Feature:N', title='Feature'),
-            x=alt.X('Value:Q', title='Value'),
+
+
+    chart = alt.Chart(combined_df).mark_boxplot().encode(
+            x=alt.X('Distance:Q', title='Distance'),
+            y=alt.Y('Neighborhood:N'),
             color=alt.Color('Neighborhood:N', legend=alt.Legend(title='Neighborhood'))
         ).properties(
             title='Neighborhood Boxplots',
@@ -290,23 +280,14 @@ def visualize_neighborhoods(file_path):
 
 
 def generate_neighborhood(x, model, data, X_feat, y, save_dir):
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-
-    instance_name = f"neighborhood_instance_{str(x)}.pkl"
-    file_path = os.path.join(save_dir, instance_name)
 
     # Check if the neighborhoods already exist
-    if os.path.exists(file_path):
-        print("Loading cached neighborhoods...")
-        return load_neighborhood(file_path)
-
     ds = TabularDataset(data=data, class_name='class N',categorial_columns=['class N'])
     encoder = ColumnTransformerEnc(ds.descriptor)
     bbox = sklearn_classifier_bbox.sklearnBBox(model)
     #generate random neigh
     random_n_generator = RandomGenerator(bbox, ds, encoder)
-    random_n = random_n_generator.generate(x,100, ds.descriptor, encoder)
+    random_n = random_n_generator.generate(x, 100, ds.descriptor, encoder)
 
     # generate custom neigh
     classifiers_generator = GenerateDecisionTrees()
@@ -319,24 +300,23 @@ def generate_neighborhood(x, model, data, X_feat, y, save_dir):
     genetic_n = genetic_n_generator.generate(x,100, ds.descriptor, encoder)
     print(genetic_n)
 
-    # Save neighborhoods to file
-    neighborhoods = (random_n, custom_n, genetic_n)
-    save_neighborhood(neighborhoods, file_path)
+    return random_n, custom_n, genetic_n
 
-    return neighborhoods
 
-    #return random_n, custom_n, genetic_n
 
 def compute_distance(X1,X2, metric:str='euclidean'):
     dists = pairwise_distances(X1, X2, metric=metric)
     return dists
 
 def measure_distance(random_n, custom_n, genetic_n, an_array):# an_array can be a point or X_feat
-    an_array = an_array.reshape(1, -1)
+    if len(an_array.shape) == 1:
+        an_array = an_array.reshape(1, -1)
+    #an_array = an_array.reshape(1, -1)
     random_distance = compute_distance(random_n, an_array)
     custom_distance = compute_distance(custom_n, an_array)
     genetic_distance = compute_distance(genetic_n, an_array)
-    return random_distance, custom_distance, genetic_distance
+
+    return random_mins, custom_mins, genetic_mins
 
 
 
@@ -387,18 +367,16 @@ if __name__ == '__main__':
 
     save_dir = "neighborhood_cache"
     instance = res.iloc[9, :-1].values  # Example instance
-    file_path = os.path.join(save_dir, f"neighborhood_instance_{str(instance)}.pkl")
-
-    if not os.path.exists(file_path):
-        random_n, custom_n, genetic_n = generate_neighborhood(instance, model, res, X_feat, y, save_dir)
-        save_neighborhood((random_n, custom_n, genetic_n), file_path)
+    #file_path = os.path.join(save_dir, f"neighborhood_instance_{str(instance)}.pkl")
+    random_n, custom_n, genetic_n = generate_neighborhood(instance, model, res, X_feat, y, save_dir)
 
     #new_lore(res, model)
     #instance = res.iloc[9, :-1].values
     #random_n, custom_n, genetic_n = generate_neighborhood(instance, model, res, X_feat, y)
-    #random_distance, custom_distance, genetic_distance = measure_distance(random_n, custom_n, genetic_n, res.iloc[9, :-1].values)
+    random_distance, custom_distance, genetic_distance = measure_distance(random_n, custom_n, genetic_n,  X_feat.to_numpy())
     #print(random_distance, custom_distance, genetic_distance)
-    chart = visualize_neighborhoods(file_path)
+    #Example: extracting a column
+    chart = visualize_neighborhoods(random_distance, custom_distance, genetic_distance)
 
 
 
