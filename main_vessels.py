@@ -15,8 +15,8 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.preprocessing import OrdinalEncoder
 from sklearn.compose import make_column_selector as selector
 from sklearn import tree
-from sklearn.manifold import TSNE
 
+import umap
 import umap.umap_ as umap
 #import umap.plot
 
@@ -145,7 +145,7 @@ class NewGen(NeighborhoodGenerator):
         - find the corresponding branch in the DT for the instance
         - generate the perturbations by altering feature values to 
           fit into other branches of the DT (threshold of same class vs different class) and ensure
-          that the soft rules are maintained
+          that the soft rules are maintained)
         - Keep the feature that do not influence the class decision as constants.
         
         ---------------
@@ -274,7 +274,7 @@ def visualize_neighborhoods(random_distance, custom_distance, genetic_distance, 
     directory = "plot"
     chart_path = os.path.join(directory, "chart.png")
     alt.renderers.enable("browser")
-    # chart.save(chart_path, dpi=250)
+    #chart.save(chart_path, dpi=250)
     return chart
 
 
@@ -360,6 +360,36 @@ def new_lore(data, bb):
         print('-----')
 
 
+def visualize_umap(random_n, custom_n, genetic_n, X_train):
+
+    combined_data = np.vstack([random_n, custom_n, genetic_n, X_train])
+    labels = (
+            ["Training Data"] * len(X_train)
+            + ["random"] * len(random_n)
+            + ["custom"] * len(custom_n)
+            + ["genetic"] * len(genetic_n)
+    )
+
+    reducer = umap.UMAP(n_neighbors=15, min_dist=0.1, random_state=42)
+    embedding = reducer.fit_transform(combined_data) #maybe here i should only do the training data?
+
+    #visualize the umap
+    plt.figure(figsize=(10, 8))
+    colors = {"Training Data": "black", "random": "red", "custom": "blue", "genetic": "green"}
+    for label, color in colors.items():
+        indices = [i for i, lbl in enumerate(labels) if lbl == label]
+        plt.scatter(embedding[indices, 0], embedding[indices, 1], c=color, label=label, alpha=0.4)
+
+    # Adding plot details
+    plt.title("UMAP Visualization of Generated Points and Training Data")
+    plt.xlabel("UMAP Dimension 1")
+    plt.ylabel("UMAP Dimension 2")
+    plt.legend(loc='best')
+    plt.grid(True)
+
+    # Show plot
+    plt.show()
+
 
 if __name__ == '__main__':
     res = load_data_from_csv()
@@ -383,6 +413,8 @@ if __name__ == '__main__':
     #Example: extracting a column
     chart = visualize_neighborhoods(random_distance_inst, custom_distance_inst, genetic_distance_inst, title='Distances from Instance')
     chart.show()
+
+    visualize_umap(random_n, custom_n, genetic_n, X_feat)
 
 
 
