@@ -79,7 +79,7 @@ class NewGen(NeighborhoodGenerator):
         self.prob_of_mutation = prob_of_mutation
 
 
-    def generate(self, x, num_instances:int=10000, descriptor: dict=None, encoder=None, list=None):
+    def generate(self, x, num_instances:int=100, descriptor: dict=None, encoder=None, list=None):
         perturbed_list = []
         perturbed_list.append(x.copy())
 
@@ -281,7 +281,7 @@ def visualize_neighborhoods(random_distance, custom_distance, genetic_distance, 
 
 
 def generate_neighborhood(x, model, data, X_feat, y, save_dir):
-    NUM_INSTANCES = 1000
+    NUM_INSTANCES = 100
 
     # Check if the neighborhoods already exist
     ds = TabularDataset(data=data, class_name='class N',categorial_columns=['class N'])
@@ -360,28 +360,36 @@ def new_lore(data, bb):
         print('-----')
 
 
-def visualize_umap(random_n, custom_n, genetic_n, X_train):
-
-    combined_data = np.vstack([random_n, custom_n, genetic_n, X_train])
-    labels = (
-            ["Training Data"] * len(X_train)
-            + ["random"] * len(random_n)
-            + ["custom"] * len(custom_n)
-            + ["genetic"] * len(genetic_n)
-    )
+def visualize_umap(X_train, *neigh_arrays, labels=None):
 
     reducer = umap.UMAP(n_neighbors=15, min_dist=0.1, random_state=42)
-    embedding = reducer.fit_transform(combined_data) #maybe here i should only do the training data?
+    X_train_embedded = reducer.fit_transform(X_train) #only on the trainig data
 
+    transformed_arrays = [reducer.transform(array) for array in neigh_arrays]
     #visualize the umap
     plt.figure(figsize=(10, 8))
-    colors = {"Training Data": "black", "random": "red", "custom": "blue", "genetic": "green"}
-    for label, color in colors.items():
-        indices = [i for i, lbl in enumerate(labels) if lbl == label]
-        plt.scatter(embedding[indices, 0], embedding[indices, 1], c=color, label=label, alpha=0.4)
+    plt.scatter(
+        X_train_embedded[:, 0],
+        X_train_embedded[:, 1],
+        c='black',
+        label=labels[0] if labels else 'X_train',
+        alpha=0.3,
+    )
 
-    # Adding plot details
-    plt.title("UMAP Visualization of Generated Points and Training Data")
+    # Plot the other arrays with different colors
+    colors = ['#fc3503', '#fcca03', '#3f0cf5']  # Extend as needed
+    for i, array_embedded in enumerate(transformed_arrays):
+        label = labels[i + 1] if labels else f'Array {i + 1}'
+        plt.scatter(
+            array_embedded[:, 0],
+            array_embedded[:, 1],
+            c=colors[i % len(colors)],
+            label=label,
+            alpha=0.5,
+        )
+
+    # Add plot details
+    plt.title("UMAP Visualization")
     plt.xlabel("UMAP Dimension 1")
     plt.ylabel("UMAP Dimension 2")
     plt.legend(loc='best')
@@ -389,6 +397,7 @@ def visualize_umap(random_n, custom_n, genetic_n, X_train):
 
     # Show plot
     plt.show()
+
 
 
 if __name__ == '__main__':
@@ -413,8 +422,8 @@ if __name__ == '__main__':
     #Example: extracting a column
     chart = visualize_neighborhoods(random_distance_inst, custom_distance_inst, genetic_distance_inst, title='Distances from Instance')
     chart.show()
-
-    visualize_umap(random_n, custom_n, genetic_n, X_feat)
+    random_n, custom_n, genetic_n
+    visualize_umap(X_feat,random_n, custom_n, genetic_n,labels=["Train","random","custom","genetic"])
 
 
 
