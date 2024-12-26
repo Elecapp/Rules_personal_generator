@@ -1,11 +1,8 @@
-import os
-
-import joblib
 import pandas as pd
 import numpy as np
 
 import os
-import pickle
+
 
 
 
@@ -14,11 +11,11 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.preprocessing import OrdinalEncoder
 from sklearn.compose import make_column_selector as selector
-from sklearn import tree
+
 
 import umap
 import umap.umap_ as umap
-#import umap.plot
+
 
 import matplotlib
 
@@ -79,7 +76,7 @@ class NewGen(NeighborhoodGenerator):
         self.prob_of_mutation = prob_of_mutation
 
 
-    def generate(self, x, num_instances:int=100, descriptor: dict=None, encoder=None, list=None):
+    def generate(self, x, num_instances:int=10000, descriptor: dict=None, encoder=None, list=None):
         perturbed_list = []
         perturbed_list.append(x.copy())
 
@@ -340,7 +337,7 @@ def new_lore(data, bb):
     classifiers = classifiers_generator.decision_trees(X_feat, y)
 
     #print('model prediction is', model.predict([x]))
-    #lore = TabularRandomGeneratorLore(bbox, x)
+    #lore = TabularRandomGeneratorLore(bbox, x)![](../../Desktop/Schermata 2024-12-23 alle 15.10.01.png)
     encoder = ColumnTransformerEnc(ds.descriptor)
     surrogate = DecisionTreeSurrogate()
 
@@ -362,7 +359,8 @@ def new_lore(data, bb):
 
 def visualize_umap(X_train, *neigh_arrays, labels=None):
 
-    reducer = umap.UMAP(n_neighbors=15, min_dist=0.1, random_state=42)
+    reducer = umap.UMAP(n_neighbors=100, min_dist=0.3, metric='manhattan', random_state=42)
+    # da cambiare i n_neigh per vedere il migliore
     X_train_embedded = reducer.fit_transform(X_train) #only on the trainig data
 
     transformed_arrays = [reducer.transform(array) for array in neigh_arrays]
@@ -371,9 +369,9 @@ def visualize_umap(X_train, *neigh_arrays, labels=None):
     plt.scatter(
         X_train_embedded[:, 0],
         X_train_embedded[:, 1],
-        c='black',
+        c='#4f4e4d',
         label=labels[0] if labels else 'X_train',
-        alpha=0.3,
+        alpha=0.2,
     )
 
     # Plot the other arrays with different colors
@@ -398,6 +396,9 @@ def visualize_umap(X_train, *neigh_arrays, labels=None):
     # Show plot
     plt.show()
 
+def save_to_csv(data, filename):
+    df = pd.DataFrame(data)
+    df.to_csv(f'precomputed_csv/{filename}.csv')
 
 
 if __name__ == '__main__':
@@ -410,6 +411,7 @@ if __name__ == '__main__':
     #file_path = os.path.join(save_dir, f"neighborhood_instance_{str(instance)}.pkl")
     random_n, custom_n, genetic_n = generate_neighborhood(instance, model, res, X_feat, y, save_dir)
 
+
     #new_lore(res, model)
     #instance = res.iloc[9, :-1].values
     #random_n, custom_n, genetic_n = generate_neighborhood(instance, model, res, X_feat, y)
@@ -419,11 +421,15 @@ if __name__ == '__main__':
     random_distance_train, custom_distance_train, genetic_distance_train = measure_distance(random_n, custom_n, genetic_n, X_feat.values)
     visualize_neighborhoods(random_distance_train, custom_distance_train, genetic_distance_train, title='Distances from Trainset').show()
 
+    save_to_csv(X_feat,"X_feat")
+    save_to_csv(random_n, "random_n")
+    save_to_csv(custom_n,"custom_n")
+    save_to_csv(genetic_n,"genetic_n")
+
     #Example: extracting a column
     chart = visualize_neighborhoods(random_distance_inst, custom_distance_inst, genetic_distance_inst, title='Distances from Instance')
     chart.show()
-    random_n, custom_n, genetic_n
-    visualize_umap(X_feat,random_n, custom_n, genetic_n,labels=["Train","random","custom","genetic"])
+    #visualize_umap(X_feat, random_n, custom_n, genetic_n, labels=["Train","random","custom","genetic"])
 
 
 
