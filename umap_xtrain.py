@@ -52,12 +52,14 @@ if __name__ == '__main__':
     random_n = pd.read_csv("precomputed_csv/random_n.csv")
     custom_n = pd.read_csv("precomputed_csv/custom_n.csv")
     genetic_n = pd.read_csv("precomputed_csv/genetic_n.csv")
+    custom_genetic_n = pd.read_csv("precomputed_csv/custom_genetic_n.csv")
     X_feat_array = X_feat.to_numpy()
     random_n_array = random_n.to_numpy()
     custom_n_array = custom_n.to_numpy()
     genetic_n_array = genetic_n.to_numpy()
+    custom_genetic_n_array = custom_genetic_n.to_numpy()
 
     # Visualize UMAP with specified labels
-    visualize_umap(X_feat_array, random_n_array, custom_n_array, genetic_n_array,
-                   labels=["Train", "Random", "Custom", "Genetic"])
+    visualize_umap(X_feat_array, random_n_array, custom_n_array, genetic_n_array, custom_genetic_n_array,
+                   labels=["Train", "Random", "Custom", "Genetic", "Custom Genetic"])
 
