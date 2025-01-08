@@ -39,7 +39,7 @@ def visualize_umap(X_train, *neigh_arrays, labels=None):
     combined_data = [X_train] + list(neigh_arrays)
     data = np.vstack(combined_data)
     label_array = np.concatenate([[i] * len(d) for i, d in enumerate(combined_data)])
-    for n in (5, 10, 20, 50, 100, 200):
+    for n in (5, 6, 7, 8, 9):
         save_path = os.path.join(output_dir, f'umap_n_neighbors_{n}.png')
         draw_umap(data, label_array, n_neighbors=n, title='UMAP with n_neighbors = {}'.format(n), save_path=save_path)
 

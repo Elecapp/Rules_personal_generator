@@ -3,9 +3,7 @@ import numpy as np
 
 import os
 
-
-
-
+from deap import creator
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
@@ -36,6 +34,7 @@ from lore_sa.neighgen import GeneticGenerator
 from lore_sa.neighgen.neighborhood_generator import NeighborhoodGenerator
 from lore_sa.surrogate import DecisionTreeSurrogate
 from lore_sa.encoder_decoder import EncDec, ColumnTransformerEnc
+from lore_sa.util import neuclidean
 from lore_sa.lore import TabularRandomGeneratorLore, Lore
 
 from sklearn.metrics import pairwise_distances
@@ -66,7 +65,7 @@ class GenerateDecisionTrees:
 
 
 
-class NewGen(NeighborhoodGenerator):
+class VesselsGenerator(NeighborhoodGenerator):
     def __init__(self, bbox: AbstractBBox, dataset: Dataset, encoder: EncDec, classifiers: dict, prob_of_mutation: float, ocr=0.1 ):
         super().__init__(bbox, dataset, encoder, ocr)
         self.neighborhood = None
@@ -126,6 +125,57 @@ class NewGen(NeighborhoodGenerator):
         return mask_indices_arr
 
 
+
+class GeneticVesselsGenerator(GeneticGenerator):
+
+    def __init__(self, bbox: AbstractBBox, dataset: Dataset, encoder: EncDec, classifiers: dict, prob_of_mutation: float, ocr=0.1):
+        super().__init__(bbox, dataset, encoder, ocr,
+                         alpha1=0.5, alpha2=0.5, metric=neuclidean, ngen=100, mutpb=0.2, cxpb=0.5,
+                         tournsize=3, halloffame_ratio=0.1, random_seed=None
+                         )
+        self.vessels_generator = VesselsGenerator(bbox, dataset, encoder, classifiers, prob_of_mutation, ocr)
+
+    def generate(self, z, num_instances:int=1000, descriptor: dict=None, encoder=None, list=None):
+        new_x = z.copy()
+
+        # determine the number of instances to generate for the same class and for a different class
+        num_samples_eq = int(np.round(num_instances * 0.5))
+        num_samples_neq = num_instances - num_samples_eq
+
+        # generate the instances for the same class
+        toolbox_eq = self.setup_toolbox(z, self.fitness_equal, num_samples_eq)
+        toolbox_eq.register("custom_perturbate", self.vessels_generator.perturbate)
+        population_eq, halloffame_eq, logbook_eq = self.fit(toolbox_eq, num_samples_eq)
+        Z_eq = self.add_halloffame(population_eq, halloffame_eq)
+        # print(logbook_eq)
+
+        # generate the instances for a different class
+        toolbox_noteq = self.setup_toolbox(z, self.fitness_notequal, num_samples_neq)
+        population_noteq, halloffame_noteq, logbook_noteq = self.fit(toolbox_noteq, num_samples_neq)
+        Z_noteq = self.add_halloffame(population_noteq, halloffame_noteq)
+        # print(logbook_noteq)
+
+        # concatenate the two sets of instances
+        Z = np.concatenate((Z_eq, Z_noteq), axis=0)
+
+        # balance the instances according to the minority class
+        Z = super(GeneticGenerator, self).balance_neigh(z, Z, num_instances)
+        # the first element is the input instance
+
+        Z[0] = new_x
+        return Z
+
+    def mutate(self, toolbox, x):
+        z = toolbox.clone(x)
+        # for i in range(self.nbr_features):
+        #         #     if np.random.random() <= self.mutpb:
+        #         #         z[i] = np.random.choice(self.feature_values[i], size=1, replace=True)
+        z1 = self.vessels_generator.perturbate(z)
+
+        for i,v in enumerate(z1):
+            z[i] = v
+
+        return z,
 
 
 
@@ -244,10 +294,10 @@ def create_and_train_model(df):
 
 
 
-def visualize_neighborhoods(random_distance, custom_distance, genetic_distance, title='Neighborhood Boxplots'):
+def visualize_neighborhoods(random_distance, custom_distance, genetic_distance, custom_genetic_distance, title='Neighborhood Boxplots'):
 
     neighborhoods=[]
-    for data, label in zip([random_distance, custom_distance, genetic_distance],['Random', 'Custom', 'Genetic']):
+    for data, label in zip([random_distance, custom_distance, genetic_distance, custom_genetic_distance],['Random', 'Custom', 'Genetic', 'Custom Genetic']):
         df = pd.DataFrame(data)
         df['Neighborhood'] = label
         neighborhoods.append(df)
@@ -291,15 +341,18 @@ def generate_neighborhood(x, model, data, X_feat, y, save_dir):
     # generate custom neigh
     classifiers_generator = GenerateDecisionTrees()
     classifiers = classifiers_generator.decision_trees(X_feat, y)
-    custom_generator = NewGen(bbox, ds, encoder, classifiers, 0.05)
+    custom_generator = VesselsGenerator(bbox, ds, encoder, classifiers, 0.05)
     custom_n = custom_generator.generate(x, NUM_INSTANCES, ds.descriptor, encoder)
 
     #generate genetic neigh
     genetic_n_generator = GeneticGenerator(bbox, ds, encoder)
     genetic_n = genetic_n_generator.generate(x, NUM_INSTANCES, ds.descriptor, encoder)
-    print(genetic_n)
 
-    return random_n, custom_n, genetic_n
+    # custom genetic neigh
+    custom_gen_generator = GeneticVesselsGenerator(bbox, ds, encoder, classifiers, 0.05)
+    custom_gen_n = custom_gen_generator.generate(x, NUM_INSTANCES, ds.descriptor, encoder)
+
+    return random_n, custom_n, genetic_n, custom_gen_n
 
 
 
@@ -308,13 +361,14 @@ def compute_distance(X1, X2, metric:str='euclidean'):
     dists = np.min(dists, axis=1)
     return dists
 
-def measure_distance(random_n, custom_n, genetic_n, an_array):# an_array can be a point or X_feat
+def measure_distance(random_n, custom_n, genetic_n, custom_genetic_n, an_array):# an_array can be a point or X_feat
     #an_array = an_array.reshape(1, -1)
     random_distance = compute_distance(random_n, an_array)
     custom_distance = compute_distance(custom_n, an_array)
     genetic_distance = compute_distance(genetic_n, an_array)
+    custom_genetic_distance = compute_distance(custom_genetic_n, an_array)
 
-    return random_distance, custom_distance, genetic_distance
+    return random_distance, custom_distance, genetic_distance, custom_genetic_distance
 
 
 
@@ -341,7 +395,7 @@ def new_lore(data, bb):
     encoder = ColumnTransformerEnc(ds.descriptor)
     surrogate = DecisionTreeSurrogate()
 
-    generator = NewGen(bbox, ds, encoder, classifiers, 0.05)
+    generator = VesselsGenerator(bbox, ds, encoder, classifiers, 0.05)
 
 
     proba_lore = Lore(bbox, ds, encoder, generator, surrogate)
@@ -409,25 +463,26 @@ if __name__ == '__main__':
     save_dir = "neighborhood_cache"
     instance = res.iloc[9, :-1].values  # Example instance
     #file_path = os.path.join(save_dir, f"neighborhood_instance_{str(instance)}.pkl")
-    random_n, custom_n, genetic_n = generate_neighborhood(instance, model, res, X_feat, y, save_dir)
+    random_n, custom_n, genetic_n, custom_genetic_n = generate_neighborhood(instance, model, res, X_feat, y, save_dir)
 
 
     #new_lore(res, model)
     #instance = res.iloc[9, :-1].values
     #random_n, custom_n, genetic_n = generate_neighborhood(instance, model, res, X_feat, y)
-    random_distance_inst, custom_distance_inst, genetic_distance_inst = measure_distance(random_n, custom_n, genetic_n,  instance.reshape(1, -1))
+    random_distance_inst, custom_distance_inst, genetic_distance_inst, custom_genetic_distance_inst = measure_distance(random_n, custom_n, genetic_n, custom_genetic_n, instance.reshape(1, -1))
     #print(random_distance, custom_distance, genetic_distance)
 
-    random_distance_train, custom_distance_train, genetic_distance_train = measure_distance(random_n, custom_n, genetic_n, X_feat.values)
-    visualize_neighborhoods(random_distance_train, custom_distance_train, genetic_distance_train, title='Distances from Trainset').show()
+    random_distance_train, custom_distance_train, genetic_distance_train, custom_genetic_distance_train = measure_distance(random_n, custom_n, genetic_n, custom_genetic_n, X_feat.values)
+    visualize_neighborhoods(random_distance_train, custom_distance_train, genetic_distance_train, custom_genetic_distance_train, title='Distances from Trainset').show()
 
     save_to_csv(X_feat,"X_feat")
     save_to_csv(random_n, "random_n")
     save_to_csv(custom_n,"custom_n")
     save_to_csv(genetic_n,"genetic_n")
+    save_to_csv(custom_genetic_n,"custom_genetic_n")
 
     #Example: extracting a column
-    chart = visualize_neighborhoods(random_distance_inst, custom_distance_inst, genetic_distance_inst, title='Distances from Instance')
+    chart = visualize_neighborhoods(random_distance_inst, custom_distance_inst, genetic_distance_inst, custom_genetic_distance_inst, title='Distances from Instance')
     chart.show()
     #visualize_umap(X_feat, random_n, custom_n, genetic_n, labels=["Train","random","custom","genetic"])
 
