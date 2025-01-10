@@ -11,7 +11,7 @@ import altair as alt
 alt.data_transformers.enable('default', max_rows=None)
 
 
-def run_umap(data, labels, n_neighbors=15, min_dist=0.1, n_components=2, metric='euclidean'):
+def run_umap(data, labels, n_neighbors=5, min_dist=0.1, n_components=2, metric='euclidean'):
     reducer= umap.UMAP(
         n_neighbors=n_neighbors,
         min_dist=min_dist,
@@ -22,7 +22,7 @@ def run_umap(data, labels, n_neighbors=15, min_dist=0.1, n_components=2, metric=
     return embedding
 
 
-def grid_search_umap(X_train, neigh_arrays, labels, min_dists, n_neighbors_values):
+def grid_search_umap(X_train, neigh_arrays, labels, min_dists, metrics): #n_neighbors_values
     if labels is None:
         labels = ['Dataset {}'.format(i) for i in range(len(neigh_arrays) + 1)]
 
@@ -33,14 +33,16 @@ def grid_search_umap(X_train, neigh_arrays, labels, min_dists, n_neighbors_value
     grid_results = []
 
     for min_dist in min_dists:
-        for n_neighbors in n_neighbors_values:
-            embedding = run_umap(data, label_array, n_neighbors=n_neighbors, min_dist=min_dist)
+        for metric in metrics:
+        #for n_neighbors in n_neighbors_values:
+            embedding = run_umap(data, label_array, metric=metric , min_dist=min_dist) #n_neighbors=n_neighbors
             for i, (x, y) in enumerate(embedding):
                 grid_results.append({
                     'x': x,
                     'y': y,
                     'label': label_array[i],
-                    'n_neighbors': n_neighbors,
+                    'metric':metric,
+                    #'n_neighbors': n_neighbors,
                     'min_dist': min_dist
                 })
     return pd.DataFrame(grid_results)
@@ -63,8 +65,8 @@ def visualize_with_altair(grid_results):
         color=alt.Color('label_name:N', legend=alt.Legend(title='Labels'), scale=alt.Scale(domain= domain_, range=range_) ),
         tooltip=['x','y']
     ).facet(
-        row=alt.Row('n_neighbors:O', title='n_neighbors'),
-        column=alt.Column('min_dist:Q', title='min_dist')
+        column=alt.Column('metric:N', title='Metric'),
+        row=alt.Row('min_dist:Q', title='min_dist')
     ).properties(
         title="UMAP Grid Search Visualization"
     )
@@ -89,12 +91,14 @@ if __name__ == '__main__':
     custom_genetic_n_array = custom_genetic_n.to_numpy()
 
     min_dist_values = [0.1, 0.2, 0.3, 0.4, 0.5]
-    n_neighbors_values = [5, 6, 7, 8, 9]
+    #n_neighbors_values = [5, 6, 7, 8, 9]
+    metric_values = ['euclidean', 'manhattan', 'chebyshev', 'minkowski']
     grid_results = grid_search_umap(
         X_feat_array, [random_n_array, custom_n_array, genetic_n_array, custom_genetic_n_array],
         labels=["Train", "Random", "Custom", "Genetic", "Custom Genetic"],
         min_dists=min_dist_values,
-        n_neighbors_values=n_neighbors_values
+        #n_neighbors_values=n_neighbors_values,
+        metrics = metric_values
     )
 
     # Visualize results using Altair
