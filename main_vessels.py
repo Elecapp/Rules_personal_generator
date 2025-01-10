@@ -327,7 +327,7 @@ def visualize_neighborhoods(random_distance, custom_distance, genetic_distance, 
 
 
 
-def generate_neighborhood(x, model, data, X_feat, y, save_dir):
+def generate_neighborhood(x, model, data, X_feat, y):
     NUM_INSTANCES = 100
 
     # Check if the neighborhoods already exist
@@ -463,7 +463,7 @@ if __name__ == '__main__':
     save_dir = "neighborhood_cache"
     instance = res.iloc[9, :-1].values  # Example instance
     #file_path = os.path.join(save_dir, f"neighborhood_instance_{str(instance)}.pkl")
-    random_n, custom_n, genetic_n, custom_genetic_n = generate_neighborhood(instance, model, res, X_feat, y, save_dir)
+    random_n, custom_n, genetic_n, custom_genetic_n = generate_neighborhood(instance, model, res, X_feat, y) #,save_dir
 
 
     #new_lore(res, model)
