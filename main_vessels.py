@@ -328,8 +328,7 @@ def visualize_neighborhoods(random_distance, custom_distance, genetic_distance, 
 
 
 
-def generate_neighborhood(x, model, data, X_feat, y, save_dir):
-    NUM_INSTANCES = 100
+def generate_neighborhood(x, model, data, X_feat, y, num_instances=100, neighborhood_types=['train', 'random']):
 
     # Check if the neighborhoods already exist
     ds = TabularDataset(data=data, class_name='class N',categorial_columns=['class N'])
