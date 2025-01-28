@@ -27,6 +27,7 @@ import random
 from lore_sa.dataset import TabularDataset, Dataset
 from lore_sa.bbox import sklearn_classifier_bbox, AbstractBBox
 from lore_sa.neighgen import RandomGenerator
+from lore_sa.neighgen import GeneticGenerator
 from lore_sa.neighgen.neighborhood_generator import NeighborhoodGenerator
 from lore_sa.surrogate import DecisionTreeSurrogate
 from lore_sa.encoder_decoder import EncDec, ColumnTransformerEnc
@@ -206,6 +207,7 @@ def compute_statistics_distance(res, model):
         encoder = ColumnTransformerEnc(data.descriptor)
         generator = ProbabilitiesWeightBasedGenerator(bbox, data, encoder)
         rnd_generator = RandomGenerator(bbox, data, encoder)
+        genetic_generator = GeneticGenerator(bbox,data,encoder)
 
         print('Converting the input instance')
         ist_lbl = np.full(1, 'ist').reshape(-1, 1)
@@ -218,6 +220,14 @@ def compute_statistics_distance(res, model):
         cst_lbl = np.full(len(cst_np_mins), 'cst').reshape(-1, 1)
         cst_neighb_z_lbl = np.concatenate([cst_lbl, cst_neighb_z, cst_bbox_lbl], axis=1)
 
+        print('Computing distances of genetic generator')
+        genetic_np_mins, genetic_neighb_z, genetic_bbox_lbl = measure_distances(
+            data, encoder, genetic_generator, x, 'Genetic', res, model
+        )
+        genetic_lbl = np.full(len(genetic_np_mins), 'Genetic').reshape(-1, 1)
+        genetic_neighb_z_lbl = np.concatenate([genetic_lbl, genetic_neighb_z, genetic_bbox_lbl], axis=1)
+
+
         print('Euclidean distances from the original data')
         rnd_np_mins, rnd_neighb_z, rnd_bbox_lbl = measure_distances(data, encoder, rnd_generator, x, 'Random', res, model )
         rnd_lbl = np.full(len(rnd_np_mins), 'rnd').reshape(-1, 1)
@@ -229,7 +239,7 @@ def compute_statistics_distance(res, model):
         train_dataset = np.concatenate([trn_lbl, train_features, res.values[:, -1].reshape(-1,1) ], axis=1)
 
 
-        neighbs = np.concatenate([ist_neighb, rnd_neighb_z_lbl, cst_neighb_z_lbl, train_dataset], axis=0)
+        neighbs = np.concatenate([ist_neighb, rnd_neighb_z_lbl, cst_neighb_z_lbl,genetic_neighb_z_lbl, train_dataset], axis=0)
 
         #reducer = umap.UMAP(n_neighbors=300,  random_state=1, min_dist=0.3, metric='manhattan')
         reducer = TSNE(perplexity=50, metric='manhattan' )
@@ -248,12 +258,14 @@ def compute_statistics_distance(res, model):
 
         alt_df_dist_o = pd.DataFrame(cst_np_mins, columns=['Distance'])
         alt_df_dist_r = pd.DataFrame(rnd_np_mins, columns=['Distance'])
+        alt_df_dist_g = pd.DataFrame(genetic_np_mins, columns=['Distance'])
         print(alt_df_dist_o.head(10))
         alt_df_dist_o['source'] = 'Custom'
         alt_df_dist_r['source'] = 'Random'
-        domain_ = ['Random', 'Custom']
-        range_ = ['#102ce0', '#fa7907']
-        boxplot_df = pd.concat([alt_df_dist_o, alt_df_dist_r], axis=0)
+        alt_df_dist_g['source'] = 'Genetic'
+        domain_ = ['Random', 'Custom', 'Genetic']
+        range_ = ['#102ce0', '#fa7907','#027037']
+        boxplot_df = pd.concat([alt_df_dist_o, alt_df_dist_r, alt_df_dist_g], axis=0)
         box_plot = alt.Chart(boxplot_df).mark_boxplot().encode(
             alt.X("Distance:Q"),
             #scale=alt.Scale(zero=False,domain=[2.5,4.5])
@@ -266,7 +278,7 @@ def compute_statistics_distance(res, model):
         )
 #        box_plot.save(f'plot/instance_vs_neigh/boxplot_bay_{i}.pdf')
 
-def measure_distances(data, encoder, generator, x, label: str, res, model, neighb_size:int=10000):
+def measure_distances(data, encoder, generator, x, label: str, res, model, neighb_size:int=100):
     preprocessor = generator.bbox.bbox.named_steps.get('columntransformer')
     global_mins = []
     for i in range(100):
@@ -331,7 +343,7 @@ def new_lore(res, model):
     #print(instance)
     prediction = model.predict([instance])
 
-    #print(prediction)
+    print(prediction)
 
     df_15 = pd.read_csv('datasets/selected_train_instances_15.csv', sep=';')
 
@@ -345,7 +357,7 @@ def new_lore(res, model):
     print("instance is:", x)
     print('model prediction is', model.predict([x]))
 
-    lore = TabularRandomGeneratorLore(bbox, data)
+    #lore = TabularRandomGeneratorLore(bbox, data)
     encoder = ColumnTransformerEnc(data.descriptor)
     surrogate = DecisionTreeSurrogate()
     generator = ProbabilitiesWeightBasedGenerator(bbox, data, encoder)
@@ -384,7 +396,7 @@ if __name__ == '__main__':
         joblib.dump(model, model_pkl_file)
 
     new_lore(res, model)
-    #compute_statistics_distance(res, model)
+    compute_statistics_distance(res, model)
 
    #UMAPMapper()
 

@@ -56,7 +56,7 @@ def visualize_with_altair(grid_results):
         3: "Genetic",
         4: "Custom Genetic"
     }
-    grid_results['label_name'] = grid_results['label'].map(label_mapping)
+    grid_results['label_name'] =grid_results['label'].map(label_mapping)
     domain_ = ['Train', 'Random', 'Custom', 'Genetic', 'Custom Genetic']
     range_ = ['#909396', '#f08a24','#1ceb7c','#ffe600','#1805f0']
     chart = alt.Chart(grid_results).mark_circle(size=25, opacity=0.3).encode(
@@ -73,6 +73,17 @@ def visualize_with_altair(grid_results):
     alt.renderers.enable("browser")
     return chart
 
+def save_umap_to_csv(grid_results, output_csv_path):
+    """
+    Save the UMAP embeddings along with their labels, metrics, and parameters into a CSV file.
+
+    Args:
+        grid_results (pd.DataFrame): DataFrame containing UMAP results.
+        output_csv_path (str): Path to save the resulting CSV file.
+    """
+    # Save the DataFrame to a CSV file
+    grid_results.to_csv(output_csv_path, index=False)
+    print(f"UMAP embeddings exported to {output_csv_path}")
 
 if __name__ == '__main__':
     output_dir = 'umap_n_neighs'
@@ -100,6 +111,9 @@ if __name__ == '__main__':
         #n_neighbors_values=n_neighbors_values,
         metrics = metric_values
     )
+
+    output_csv_path = os.path.join(output_dir, "umap_embeddings.csv")
+    save_umap_to_csv(grid_results, output_csv_path)
 
     # Visualize results using Altair
     chart = visualize_with_altair(grid_results)
