@@ -19,6 +19,8 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
+logging.getLogger('numba').setLevel(logging.ERROR)
+
 class VesselEvent(BaseModel):
     SpeedMinimum: float
     SpeedQ1: float
@@ -49,6 +51,15 @@ logger.info(f"Instance: {instance}")
 
 predicted_class = model.predict([instance])
 logger.info(f"Predicted class: {predicted_class}")
+reducer = umap.UMAP(
+        n_neighbors=5,
+        min_dist= 0.3,
+        n_components=2,
+        metric='chebyshev',
+        verbose=False
+    )
+
+reducer.fit(data_train)
 
 
 
@@ -99,29 +110,29 @@ async def neighborhood(neigh_request: NeighborhoodRequest):
     input_instance = np.copy(instance)
 
     predicted_class = model.predict([instance])
+    logger.info(f"Predicted class: {predicted_class}")
     neighbs = generate_neighborhood(instance, model, df_vessels, data_train, target_train, neigh_request.num_samples, neighborhood_types_str)
 
-    reducer = umap.UMAP(
-        n_neighbors=5,
-        min_dist= 0.3,
-        n_components=2,
-        metric='chebyshev'
-    )
-
     # create an empty data frame to aggregate the neighborhoods
-    df_neighbs = pd.DataFrame()
+    df_neighbs = pd.DataFrame([instance], columns=df_vessels.columns[:-1])
+    df_neighbs['predicted_class'] = predicted_class
+    df_neighbs['neighborhood_type'] = 'instance'
+
     for i, neighb in enumerate(neighbs):
         logger.info(f"Processing neighborhood type: {neighborhood_types_str[i]}")
         neighb_classes = model.predict(neighb)
         # create a dataframe containing all the columns of neighb, plus and the predicted class and the string label
         neighb_df = pd.DataFrame(neighb, columns=df_vessels.columns[:-1])
-        neighb_df['predicted_class'] = neighb_classes
+        if neighborhood_types_str[i] == 'train':
+            neighb_df['predicted_class'] = target_train
+        else:
+            neighb_df['predicted_class'] = neighb_classes
         neighb_df['neighborhood_type'] = neighborhood_types_str[i]
 
         df_neighbs = pd.concat([df_neighbs, neighb_df], ignore_index=True)
 
     # apply UMAP to the neighborhood data. Only to the features contained in the original df_vessels
-    embedding = reducer.fit_transform(df_neighbs[df_vessels.columns[:-1]])
+    embedding = reducer.transform(df_neighbs[df_vessels.columns[:-1]])
     df_neighbs['umap1'] = embedding[:, 0]
     df_neighbs['umap2'] = embedding[:, 1]
 
