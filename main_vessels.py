@@ -143,14 +143,14 @@ class GeneticVesselsGenerator(GeneticGenerator):
         num_samples_neq = num_instances - num_samples_eq
 
         # generate the instances for the same class
-        toolbox_eq = self.setup_toolbox(z, self.fitness_equal, num_samples_eq)
+        toolbox_eq = self.setup_toolbox(z, self.population_fitness_equal(z), num_samples_eq)
         toolbox_eq.register("custom_perturbate", self.vessels_generator.perturbate)
         population_eq, halloffame_eq, logbook_eq = self.fit(toolbox_eq, num_samples_eq)
         Z_eq = self.add_halloffame(population_eq, halloffame_eq)
         # print(logbook_eq)
 
         # generate the instances for a different class
-        toolbox_noteq = self.setup_toolbox(z, self.fitness_notequal, num_samples_neq)
+        toolbox_noteq = self.setup_toolbox(z, self.population_fitness_notequal(z), num_samples_neq)
         population_noteq, halloffame_noteq, logbook_noteq = self.fit(toolbox_noteq, num_samples_neq)
         Z_noteq = self.add_halloffame(population_noteq, halloffame_noteq)
         # print(logbook_noteq)
