@@ -32,10 +32,10 @@ def get_vessels_data():
             'MaxDistPort': vessel_event_values[7],
             'MinDistPort': vessel_event_values[8]
         },
-        'num_samples': 5000,
+        'num_samples': 50000,
         # 'neighborhood_types': 7 # in binary format: 111
         # 'neighborhood_types': 23 # in binary format: 10111
-        'neighborhood_types': 31 # in binary format: 11111
+        'neighborhood_types': 31 # in binary format: 11111 (all neighborhood types)
     }
 
     response = requests.request("POST", url, data=json.dumps(payload), headers=headers)
@@ -113,7 +113,7 @@ def get_vessels_data():
 
 
     (alt.vconcat(chartUMAP, chartClasses, alt.hconcat(*neighbsCharts))
-     .save('vessels.html'))
+     .save('vessels_50k_all_neighbs.html'))
 
 
 if __name__ == '__main__':

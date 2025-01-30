@@ -66,11 +66,12 @@ class GenerateDecisionTrees:
 
 
 class VesselsGenerator(NeighborhoodGenerator):
-    def __init__(self, bbox: AbstractBBox, dataset: Dataset, encoder: EncDec, classifiers: dict, prob_of_mutation: float, ocr=0.1 ):
+    def __init__(self, bbox: AbstractBBox, dataset: Dataset, encoder: EncDec, X_feat, classifiers: dict, prob_of_mutation: float, ocr=0.1 ):
         super().__init__(bbox, dataset, encoder, ocr)
         self.neighborhood = None
         self.preprocess = bbox.bbox.named_steps.get('columntransformer')
         self.gen_data = None
+        self.X_feat = X_feat
         self.classifiers = classifiers
         self.prob_of_mutation = prob_of_mutation
 
@@ -102,7 +103,7 @@ class VesselsGenerator(NeighborhoodGenerator):
         for node in node_indices:
             if feature[node] != -2:  # -2 indicates a leaf node
                 influencing_features.append(
-                    (X_feat.columns[feature[node]], threshold[node], instance[feature[node]], instance[feature[node]] < threshold[node], node)
+                    (self.X_feat.columns[feature[node]], threshold[node], instance[feature[node]], instance[feature[node]] < threshold[node], node)
                 )
         # extract the feature indices
         feature_indices = [f[4] for f in influencing_features]
@@ -128,12 +129,12 @@ class VesselsGenerator(NeighborhoodGenerator):
 
 class GeneticVesselsGenerator(GeneticGenerator):
 
-    def __init__(self, bbox: AbstractBBox, dataset: Dataset, encoder: EncDec, classifiers: dict, prob_of_mutation: float, ocr=0.1):
+    def __init__(self, bbox: AbstractBBox, dataset: Dataset, encoder: EncDec, X_feat, classifiers: dict, prob_of_mutation: float, ocr=0.1):
         super().__init__(bbox, dataset, encoder, ocr,
                          alpha1=0.5, alpha2=0.5, metric=neuclidean, ngen=100, mutpb=0.2, cxpb=0.5,
                          tournsize=3, halloffame_ratio=0.1, random_seed=None
                          )
-        self.vessels_generator = VesselsGenerator(bbox, dataset, encoder, classifiers, prob_of_mutation, ocr)
+        self.vessels_generator = VesselsGenerator(bbox, dataset, encoder, X_feat, classifiers, prob_of_mutation, ocr)
 
     def generate(self, z, num_instances:int=1000, descriptor: dict=None, encoder=None, list=None):
         new_x = z.copy()
@@ -327,32 +328,38 @@ def visualize_neighborhoods(random_distance, custom_distance, genetic_distance, 
 
 
 
-def generate_neighborhood(x, model, data, X_feat, y):
-    NUM_INSTANCES = 100
+def generate_neighborhood(x, model, data, X_feat, y, num_instances=100, neighborhood_types=['train', 'random']):
 
     # Check if the neighborhoods already exist
     ds = TabularDataset(data=data, class_name='class N',categorial_columns=['class N'])
     encoder = ColumnTransformerEnc(ds.descriptor)
     bbox = sklearn_classifier_bbox.sklearnBBox(model)
-    #generate random neigh
-    random_n_generator = RandomGenerator(bbox, ds, encoder)
-    random_n = random_n_generator.generate(x, NUM_INSTANCES, ds.descriptor, encoder)
+    result = ()
 
-    # generate custom neigh
-    classifiers_generator = GenerateDecisionTrees()
-    classifiers = classifiers_generator.decision_trees(X_feat, y)
-    custom_generator = VesselsGenerator(bbox, ds, encoder, classifiers, 0.05)
-    custom_n = custom_generator.generate(x, NUM_INSTANCES, ds.descriptor, encoder)
 
-    #generate genetic neigh
-    genetic_n_generator = GeneticGenerator(bbox, ds, encoder)
-    genetic_n = genetic_n_generator.generate(x, NUM_INSTANCES, ds.descriptor, encoder)
+    if 'train' in neighborhood_types:
+        result = result + (X_feat.values,)
+    if 'random' in neighborhood_types:
+        random_n_generator = RandomGenerator(bbox, ds, encoder)
+        random_n = random_n_generator.generate(x, num_instances, ds.descriptor, encoder)
+        result = result + (random_n,)
+    if 'custom' in neighborhood_types:
+        classifiers_generator = GenerateDecisionTrees()
+        classifiers = classifiers_generator.decision_trees(X_feat, y)
+        custom_generator = VesselsGenerator(bbox, ds, encoder, X_feat, classifiers, 0.05)
+        custom_n = custom_generator.generate(x, num_instances, ds.descriptor, encoder)
+        result = result + (custom_n,)
+    if 'genetic' in neighborhood_types:
+        genetic_n_generator = GeneticGenerator(bbox, ds, encoder)
+        genetic_n = genetic_n_generator.generate(x, num_instances, ds.descriptor, encoder)
+        result = result + (genetic_n,)
+    if 'custom_genetic' in neighborhood_types:
+        custom_gen_generator = GeneticVesselsGenerator(bbox, ds, encoder, X_feat, classifiers, 0.05)
+        custom_gen_n = custom_gen_generator.generate(x, num_instances, ds.descriptor, encoder)
+        result = result + (custom_gen_n,)
 
-    # custom genetic neigh
-    custom_gen_generator = GeneticVesselsGenerator(bbox, ds, encoder, classifiers, 0.05)
-    custom_gen_n = custom_gen_generator.generate(x, NUM_INSTANCES, ds.descriptor, encoder)
 
-    return random_n, custom_n, genetic_n, custom_gen_n
+    return result
 
 
 
@@ -463,12 +470,11 @@ if __name__ == '__main__':
     save_dir = "neighborhood_cache"
     instance = res.iloc[9, :-1].values  # Example instance
     #file_path = os.path.join(save_dir, f"neighborhood_instance_{str(instance)}.pkl")
-    random_n, custom_n, genetic_n, custom_genetic_n = generate_neighborhood(instance, model, res, X_feat, y) #,save_dir
+    random_n, custom_n, genetic_n, custom_genetic_n = generate_neighborhood(instance, model, res, X_feat, y, save_dir)
 
 
     #new_lore(res, model)
     #instance = res.iloc[9, :-1].values
-    #random_n, custom_n, genetic_n = generate_neighborhood(instance, model, res, X_feat, y)
     random_distance_inst, custom_distance_inst, genetic_distance_inst, custom_genetic_distance_inst = measure_distance(random_n, custom_n, genetic_n, custom_genetic_n, instance.reshape(1, -1))
     #print(random_distance, custom_distance, genetic_distance)
 

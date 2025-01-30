@@ -12,7 +12,15 @@ import umap
 import umap.umap_ as umap
 from starlette.responses import StreamingResponse
 
-from main_vessels import create_and_train_model, load_data_from_csv, generate_neighborhood
+from lore_sa.bbox import sklearn_classifier_bbox
+from lore_sa.dataset import TabularDataset
+from lore_sa.encoder_decoder import ColumnTransformerEnc
+from lore_sa.lore import Lore
+from lore_sa.neighgen import RandomGenerator, GeneticGenerator
+from lore_sa.surrogate import DecisionTreeSurrogate
+from main_api import rule_to_dict
+from main_vessels import create_and_train_model, load_data_from_csv, generate_neighborhood, GenerateDecisionTrees, \
+    VesselsGenerator, GeneticVesselsGenerator
 
 from pydantic import BaseModel
 
@@ -145,3 +153,51 @@ async def neighborhood(neigh_request: NeighborhoodRequest):
     response.headers["Content-Disposition"] = "attachment; filename=neighborhood.csv"
 
     return response
+
+@app.post("/explain")
+async def explain(request:NeighborhoodRequest):
+    logger.info(f"Received event: {request.vessel_event}")
+    logger.info(f"Number of size of neighborhood: {request.num_samples}")
+    neighborhood_type_labels = ['train', 'random', 'custom', 'genetic', 'custom_genetic']
+    neighborhood_types_str = [neighborhood_type_labels[i] for i in range(5) if request.neighborhood_types & (1 << i)]
+    selected_neighbor_generator = neighborhood_types_str[0]
+    instance = np.array(request.vessel_event.to_list())
+
+    predicted_class = model.predict([instance])
+    logger.info(f"Predicted class: {predicted_class}")
+
+    ds = TabularDataset(data=df_vessels, class_name='class N',categorial_columns=['class N'])
+    encoder = ColumnTransformerEnc(ds.descriptor)
+    bbox = sklearn_classifier_bbox.sklearnBBox(model)
+    surrogate = DecisionTreeSurrogate()
+    generator = None
+    if selected_neighbor_generator == 'random':
+        generator = RandomGenerator(bbox, ds, encoder)
+    if selected_neighbor_generator == 'genetic':
+        generator = GeneticGenerator(bbox, ds, encoder)
+    if selected_neighbor_generator == 'custom':
+        classifiers_generator = GenerateDecisionTrees()
+        classifiers = classifiers_generator.decision_trees(data_train, target_train)
+        generator = VesselsGenerator(bbox, ds, encoder, data_train, classifiers, 0.05)
+    if selected_neighbor_generator == 'genetic':
+        generator = GeneticGenerator(bbox, ds, encoder)
+    if selected_neighbor_generator == 'custom_genetic':
+        classifiers_generator = GenerateDecisionTrees()
+        classifiers = classifiers_generator.decision_trees(data_train, target_train)
+        generator = GeneticVesselsGenerator(bbox, ds, encoder, data_train, classifiers, 0.05)
+
+    proba_lore = Lore(bbox, ds, encoder, generator, surrogate)
+
+    explanation = proba_lore.explain(instance, num_instances=request.num_samples)
+    # convert explanation to json string using json.dumps
+    rule = rule_to_dict(explanation['rule'])
+    crRules = [rule_to_dict(cr) for cr in explanation['counterfactuals']]
+
+    return {
+        'instance': instance.tolist(),
+        'predicted_class': predicted_class[0],
+        'explanation': {
+            'rule': rule,
+            'counterfactuals': crRules
+        }
+    }
