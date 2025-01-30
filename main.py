@@ -276,12 +276,12 @@ def compute_statistics_distance(res, model):
             width=400,
             title='Euclidean distances of the neighbourhoods from the instance'
         )
-#        box_plot.save(f'plot/instance_vs_neigh/boxplot_bay_{i}.pdf')
+        box_plot.save(f'plot/instance_vs_neigh/boxplot_bay_{i}.pdf')
 
-def measure_distances(data, encoder, generator, x, label: str, res, model, neighb_size:int=100):
+def measure_distances(data, encoder, generator, x, label: str, res, model, neighb_size:int=1000):
     preprocessor = generator.bbox.bbox.named_steps.get('columntransformer')
     global_mins = []
-    for i in range(100):
+    for i in range(5):
         # project the instance x and create a neighborhood of given size
         neighb_ohe = generator.generate(encoder.encode(x.reshape(1, -1))[0], neighb_size, data.descriptor, encoder)
         # decode the neighborhood
@@ -349,8 +349,8 @@ def new_lore(res, model):
 
 
     bbox = sklearn_classifier_bbox.sklearnBBox(model)
-    data = TabularDataset(data=df_15, class_name="Class_label")
-    #data = TabularDataset(data=res, class_name='Class_label')
+    #data = TabularDataset(data=df_15, class_name="Class_label")
+    data = TabularDataset(data=res, class_name='Class_label')
     print(data.df)
     x = df_15.iloc[7, :-1].values #7
     #x = data.df.iloc[45, :-1].values
