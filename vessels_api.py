@@ -105,6 +105,51 @@ NEIGHB_CUSTOM_GENETIC = 0b10000
 
 @app.post("/neighborhood")
 async def neighborhood(neigh_request: NeighborhoodRequest):
+    """
+        Creates a neighborhood around the given vessel event.
+        The input event is a structered data containing the features of a vessel
+        plus some additional parameters useful for the generation, like the number
+        of samples and the neighborhood types.
+        Here is an example of an input event:
+        ```
+        {
+            "vessel_event": {
+                "SpeedMinimum": 0.0,
+                "SpeedQ1": 0.0,
+                "SpeedMedian": 0.0,
+                "SpeedQ3": 0.0,
+                "DistanceStartShapeCurvature": 0.0,
+                "DistanceStartTrendAngle": 0.0,
+                "DistStartTrendDevAmplitude": 0.0,
+                "MaxDistPort": 0.0,
+                "MinDistPort": 0.0
+            },
+            "num_samples": 10,
+            "neighborhood_types": 1
+        }
+        ```
+        The `neighborhood_types` is an integer that represents the types of neighborhoods to be generated.
+        It uses a bitmap to encode multiple types of neighborhoods. The following table shows the encoding:
+        ```
+        NEIGHB_TRAIN =          0b00001
+        NEIGHB_RANDOM =         0b00010
+        NEIGHB_CUSTOM =         0b00100
+        NEIGHB_GENETIC =        0b01000
+        NEIGHB_CUSTOM_GENETIC = 0b10000
+        ```
+        Thus, to generate the neighborhood using the training data, the `neighborhood_types` should be `1`.
+        For a generation that will contain the training data, the random neighborhood, and the custom
+        neighborhood, the `neighborhood_types` should be `7`.
+
+        Below a few examples of combination that may be used:
+
+        - `1` - only the training data
+        - `2` - only random generator
+        - `3` - training and random generator
+        - `7` - training, random and custom generator
+        - `31` - all generators
+
+    """
     logger.info(f"Received event: {neigh_request.vessel_event}")
     logger.info(f"Number of samples: {neigh_request.num_samples}")
     # transform the integer neighborhood_types into a list of strings according to the bits
