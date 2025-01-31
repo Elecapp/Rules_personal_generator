@@ -70,8 +70,14 @@ reducer = umap.UMAP(
 reducer.fit(data_train)
 
 
-
-app = FastAPI(title="Vessels API", description="API for vessels data", version="0.1")
+metadata_tags = [
+    {
+        "name": "Vessels",
+        "description": "API for vessels data"
+    }
+]
+app = FastAPI(title="Vessels API", description="API for vessels data",
+              version="0.1", openapi_tags=metadata_tags)
 app.add_middleware(CORSMiddleware,
                    allow_origins=["*"],
                    allow_credentials=True,
@@ -80,12 +86,15 @@ app.add_middleware(CORSMiddleware,
                    )
 
 
+
+
+
 @app.get("/")
 async def root():
     return {"message": "Welcome to the Vessels API"}
 
 
-@app.post("/classify_vessel")
+@app.post("/vessels/classify", tags=["Vessels"])
 async def classify_vessel(vessel_event: VesselEvent):
     logger.info(f"Received event: {vessel_event}")
 
@@ -103,7 +112,7 @@ NEIGHB_CUSTOM =         0b00100
 NEIGHB_GENETIC =        0b01000
 NEIGHB_CUSTOM_GENETIC = 0b10000
 
-@app.post("/neighborhood")
+@app.post("/vessels/neighborhood", tags=["Vessels"])
 async def neighborhood(neigh_request: NeighborhoodRequest):
     """
         Creates a neighborhood around the given vessel event.
@@ -199,7 +208,7 @@ async def neighborhood(neigh_request: NeighborhoodRequest):
 
     return response
 
-@app.post("/explain")
+@app.post("/vessels/explain", tags=["Vessels"])
 async def explain(request:NeighborhoodRequest):
     logger.info(f"Received event: {request.vessel_event}")
     logger.info(f"Number of size of neighborhood: {request.num_samples}")
