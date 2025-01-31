@@ -17,7 +17,7 @@ def get_vessels_data():
     vessel_event_values = [1.37, 4.05, 4.45, 5.24, 2.27, 0, 4.58, 25.92, 21.8] # row id 3, class N = 3
     vessel_event_values = [13.57, 14.05, 14.64, 16.65, 1, 0.25, 1.7, 34.67, 23.6] # row id 3, class N = 1
 
-    url = "http://localhost:10000/neighborhood"
+    url = "http://localhost:10000/vessels/neighborhood"
     headers = {
         'accept': "application/json",
         'Content-Type': "application/json"
@@ -36,9 +36,10 @@ def get_vessels_data():
             'MinDistPort': vessel_event_values[8]
         },
         'num_samples': 1000,
-        'neighborhood_types': 7 # in binary format: 111
+        # 'neighborhood_types': 7 # in binary format: 111
         # 'neighborhood_types': 23 # in binary format: 10111
         # 'neighborhood_types': 31 # in binary format: 11111 (all neighborhood types)
+        'neighborhood_types': 7 # in binary format: 10111
     }
 
     response = requests.request("POST", url, data=json.dumps(payload), headers=headers)
@@ -88,34 +89,32 @@ def get_vessels_data():
         height=200
     ))
 
-    grouped = df.groupby(['neighborhood_type'])
     attributes = ['SpeedMinimum', 'SpeedQ1', 'SpeedMedian', 'SpeedQ3', 'DistanceStartShapeCurvature',
                 'DistStartTrendAngle', 'DistStartTrendDevAmplitude', 'MaxDistPort', 'MinDistPort']
-    neighbsCharts = []
-    for key, group in grouped:
-        if key[0] != 'instance':
-            barChart = alt.Chart(group).mark_bar().encode(
-                y = alt.Y('count()', title=''),
-                color=alt.Color('neighborhood_type:N', scale=color_scale),
-            )
-            multiCharts = []
-            for attribute in attributes:
-                attributeBarChart = barChart.encode(
-                    x = alt.X(attribute, title=attribute)
-                        .bin(maxbins=20)
-                ).properties(
-                    title=attribute + ' - ' + key[0],
-                    height=100,
-                    width=200,
-                ).transform_filter(brush)
-                multiCharts.append(attributeBarChart)
-
-            neighbTypeCharts = alt.vconcat(*multiCharts)
-            neighbsCharts.append(neighbTypeCharts)
 
 
+    marginalCharts = (alt.Chart(df).mark_bar().encode(
+        y = alt.Y('count()', title=''),
+        color=alt.Color('neighborhood_type:N', scale=color_scale),
+        column=alt.Column('neighborhood_type:N', title=None)
+    ).transform_filter(alt.datum.neighborhood_type != 'instance').properties(
+        width=200,
+        height=100
+    ).transform_filter(brush))
 
-    (alt.vconcat(chartUMAP, chartClasses, alt.hconcat(*neighbsCharts))
+    attributeCharts = []
+    for attribute in attributes:
+        attributeBarChart = marginalCharts.encode(
+            x = alt.X(attribute, title=attribute)
+                .bin(maxbins=20),
+        ).properties(
+            title=attribute,
+        )
+        attributeCharts.append(attributeBarChart)
+
+    neighbsCharts = alt.vconcat(*attributeCharts)
+
+    (alt.vconcat(chartUMAP, chartClasses, neighbsCharts)
      .save(filename))
 
 
