@@ -81,12 +81,13 @@ class VesselsGenerator(NeighborhoodGenerator):
         perturbed_list.append(x.copy())
 
         for _ in range(num_instances):
-            perturbed_x = self.perturbate(x, descriptor)
+            perturbed_x = self.perturbate(x)
             perturbed_list.append(perturbed_x)
         self.neighborhood = self.encoder.encode(perturbed_list)
         return self.neighborhood
 
-    def perturbate(self, instance, descriptor:dict=None):
+    def perturbate(self, instance):
+        descriptor = self.dataset.descriptor
         class_label = self.bbox.predict([instance])[0]
         chosen_dt = self.classifiers[class_label]
 
@@ -152,51 +153,19 @@ class GeneticVesselsGenerator(GeneticGenerator):
                          )
         self.vessels_generator = VesselsGenerator(bbox, dataset, encoder, X_feat, classifiers, prob_of_mutation, ocr)
 
-    def generate(self, z, num_instances:int=1000, descriptor: dict=None, encoder=None, list=None):
-        new_x = z.copy()
-
-        # determine the number of instances to generate for the same class and for a different class
-        num_samples_eq = int(np.round(num_instances * 0.5))
-        num_samples_neq = num_instances - num_samples_eq
-
-        # generate the instances for the same class
-        toolbox_eq = self.setup_toolbox(z, self.population_fitness_equal(z), num_samples_eq)
-        toolbox_eq.register("custom_perturbate", self.vessels_generator.perturbate)
-        population_eq, halloffame_eq, logbook_eq = self.fit(toolbox_eq, num_samples_eq)
-        Z_eq = self.add_halloffame(population_eq, halloffame_eq)
-        # print(logbook_eq)
-
-        # generate the instances for a different class
-        toolbox_noteq = self.setup_toolbox(z, self.population_fitness_notequal(z), num_samples_neq)
-        population_noteq, halloffame_noteq, logbook_noteq = self.fit(toolbox_noteq, num_samples_neq)
-        Z_noteq = self.add_halloffame(population_noteq, halloffame_noteq)
-        # print(logbook_noteq)
-
-        # concatenate the two sets of instances
-        Z = np.concatenate((Z_eq, Z_noteq), axis=0)
-
-        # balance the instances according to the minority class
-        Z = super(GeneticGenerator, self).balance_neigh(z, Z, num_instances)
-        # the first element is the input instance
-
-        Z[0] = new_x
-        return Z
-
     def mutate(self, toolbox, x):
+        """
+         This function specializes the mutation operator of the genetic algorithm to explicitly
+         use the implementation of the perturbation of the VesselsGenerator class. This guarantees
+            that the perturbation is consistent with the perturbation of the VesselsGenerator class.
+        """
         z = toolbox.clone(x)
-        # for i in range(self.nbr_features):
-        #         #     if np.random.random() <= self.mutpb:
-        #         #         z[i] = np.random.choice(self.feature_values[i], size=1, replace=True)
         z1 = self.vessels_generator.perturbate(z)
 
         for i,v in enumerate(z1):
             z[i] = v
 
         return z,
-
-
-
-
 
         '''
         in the class there are already the stored decision tree, 
