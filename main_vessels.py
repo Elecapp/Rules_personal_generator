@@ -81,12 +81,12 @@ class VesselsGenerator(NeighborhoodGenerator):
         perturbed_list.append(x.copy())
 
         for _ in range(num_instances):
-            perturbed_x = self.perturbate(x)
+            perturbed_x = self.perturbate(x, descriptor)
             perturbed_list.append(perturbed_x)
         self.neighborhood = self.encoder.encode(perturbed_list)
         return self.neighborhood
 
-    def perturbate(self, instance):
+    def perturbate(self, instance, descriptor:dict=None):
         class_label = self.bbox.predict([instance])[0]
         chosen_dt = self.classifiers[class_label]
 
@@ -109,15 +109,31 @@ class VesselsGenerator(NeighborhoodGenerator):
         feature_indices = [f[4] for f in influencing_features]
 
         # make a deep copy of x in the variable perturbed_arr
+        attributes = ['SpeedMinimum', 'SpeedQ1', 'SpeedMedian', 'SpeedQ3', 'DistanceStartShapeCurvature',
+                'DistStartTrendAngle', 'DistStartTrendDevAmplitude', 'MaxDistPort', 'MinDistPort']
+
         perturbed_arr = instance.copy()
-        perturbed_arr[0] = random.uniform(0, 17.93)
-        perturbed_arr[1] = random.uniform(perturbed_arr[0], 20.12)  # always greater than minspeed
-        perturbed_arr[2] = random.uniform(perturbed_arr[1], 20.75)  # always greater than speedQ1
-        perturbed_arr[3] = random.uniform(perturbed_arr[2], 21.65)  # always greater than speedMedian
-        perturbed_arr[4] = random.uniform(0, 2.24)
-        perturbed_arr[5] = random.uniform(-0.24, 0.36)
-        perturbed_arr[6] = random.uniform(-2.80, 1.77)
-        perturbed_arr[7] = random.uniform(0.12, 282.26)
+        for i, v in enumerate(perturbed_arr):
+            feat_name = attributes[i]
+            distribution = descriptor['numeric'][feat_name]
+            iqr = distribution['q3'] - distribution['q1']
+            noise = np.random.normal(0, 0.2 * iqr)
+            perturbed_arr[i] = np.clip(v + noise, distribution['min'], distribution['max'])
+
+        # impose constraint of the first features
+        perturbed_arr[1] = np.clip(perturbed_arr[1], perturbed_arr[0], perturbed_arr[1])
+        perturbed_arr[2] = np.clip(perturbed_arr[2], perturbed_arr[1], perturbed_arr[2])
+        perturbed_arr[3] = np.clip(perturbed_arr[3], perturbed_arr[2], perturbed_arr[3])
+
+
+        # perturbed_arr[0] = random.uniform(0, 17.93)
+        # perturbed_arr[1] = random.uniform(perturbed_arr[0], 20.12)  # always greater than minspeed
+        # perturbed_arr[2] = random.uniform(perturbed_arr[1], 20.75)  # always greater than speedQ1
+        # perturbed_arr[3] = random.uniform(perturbed_arr[2], 21.65)  # always greater than speedMedian
+        # perturbed_arr[4] = random.uniform(0, 2.24)
+        # perturbed_arr[5] = random.uniform(-0.24, 0.36)
+        # perturbed_arr[6] = random.uniform(-2.80, 1.77)
+        # perturbed_arr[7] = random.uniform(0.12, 282.26)
         perturbed_arr[8] = math.log10(random.uniform(math.exp(-3.05), perturbed_arr[7]))  # inverse log transform, identify value less than max dist, then log transform again
 
         mask_indices = [perturbed_arr[i] if (i in feature_indices or random.random() < self.prob_of_mutation) else instance[i] for i, v in enumerate(instance)] # change importance feature and some of the feature randomly based on prob
@@ -470,7 +486,7 @@ if __name__ == '__main__':
     save_dir = "neighborhood_cache"
     instance = res.iloc[9, :-1].values  # Example instance
     #file_path = os.path.join(save_dir, f"neighborhood_instance_{str(instance)}.pkl")
-    random_n, custom_n, genetic_n, custom_genetic_n = generate_neighborhood(instance, model, res, X_feat, y, save_dir)
+    result_n = generate_neighborhood(instance, model, res, X_feat, y, num_instances=1000, neighborhood_types=['train', 'random', 'custom'])
 
 
     #new_lore(res, model)
