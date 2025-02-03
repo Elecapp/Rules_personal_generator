@@ -1,4 +1,7 @@
+from typing_extensions import Unpack
+
 import logging
+from typing import List, Literal
 
 import numpy as np
 import pandas as pd
@@ -26,6 +29,7 @@ logging.basicConfig(level=logging.INFO)
 
 logging.getLogger('numba').setLevel(logging.ERROR)
 
+neighborhood_type_labels = ['train', 'random', 'custom', 'genetic', 'custom_genetic']
 
 class VesselEvent(BaseModel):
     SpeedMinimum: float
@@ -45,8 +49,8 @@ class VesselEvent(BaseModel):
 
 class VesselRequest(BaseModel):
     vessel_event: VesselEvent
-    num_samples: int
-    neighborhood_types: int
+    num_samples: int = 500
+    neighborhood_types: List[Literal['train', 'random', 'custom', 'genetic', 'custom_genetic']]
 
 
 # ===================================================================================
@@ -117,36 +121,17 @@ async def neighborhood(neigh_request: VesselRequest):
                 "MinDistPort": 0.0
             },
             "num_samples": 10,
-            "neighborhood_types": 1
+            "neighborhood_types": [
+                "train", "custom"
+            ]
         }
         ```
-        The `neighborhood_types` is an integer that represents the types of neighborhoods to be generated.
-        It uses a bitmap to encode multiple types of neighborhoods. The following table shows the encoding:
-        ```
-        NEIGHB_TRAIN =          0b00001
-        NEIGHB_RANDOM =         0b00010
-        NEIGHB_CUSTOM =         0b00100
-        NEIGHB_GENETIC =        0b01000
-        NEIGHB_CUSTOM_GENETIC = 0b10000
-        ```
-        Thus, to generate the neighborhood using the training data, the `neighborhood_types` should be `1`.
-        For a generation that will contain the training data, the random neighborhood, and the custom
-        neighborhood, the `neighborhood_types` should be `7`.
-
-        Below a few examples of combination that may be used:
-
-        - `1` - only the training data
-        - `2` - only random generator
-        - `3` - training and random generator
-        - `7` - training, random and custom generator
-        - `31` - all generators
-
+        The possible terms for the `neighborhood_types` fields are one of `['train', 'random', 'custom', 'genetic', 'custom_genetic']`
     """
     logger.info(f"Received event: {neigh_request.vessel_event}")
     logger.info(f"Number of samples: {neigh_request.num_samples}")
     # transform the integer neighborhood_types into a list of strings according to the bits
-    neighborhood_type_labels = ['train', 'random', 'custom', 'genetic', 'custom_genetic']
-    neighborhood_types_str = [neighborhood_type_labels[i] for i in range(5) if neigh_request.neighborhood_types & (1 << i)]
+    neighborhood_types_str = neigh_request.neighborhood_types
 
     logger.info(f"Neighborhood types: {neighborhood_types_str}")
 
@@ -195,8 +180,7 @@ async def neighborhood(neigh_request: VesselRequest):
 async def explain(request:VesselRequest):
     logger.info(f"Received event: {request.vessel_event}")
     logger.info(f"Number of size of neighborhood: {request.num_samples}")
-    neighborhood_type_labels = ['train', 'random', 'custom', 'genetic', 'custom_genetic']
-    neighborhood_types_str = [neighborhood_type_labels[i] for i in range(5) if request.neighborhood_types & (1 << i)]
+    neighborhood_types_str = request.neighborhood_types
     selected_neighbor_generator = neighborhood_types_str[0]
     instance = np.array(request.vessel_event.to_list())
 
