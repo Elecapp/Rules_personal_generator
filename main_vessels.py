@@ -339,6 +339,8 @@ def generate_neighborhood(x, model, data, X_feat, y, num_instances=100, neighbor
         genetic_n = genetic_n_generator.generate(x, num_instances, ds.descriptor, encoder)
         result = result + (genetic_n,)
     if 'custom_genetic' in neighborhood_types:
+        classifiers_generator = GenerateDecisionTrees()
+        classifiers = classifiers_generator.decision_trees(X_feat, y)
         custom_gen_generator = GeneticVesselsGenerator(bbox, ds, encoder, X_feat, classifiers, 0.05)
         custom_gen_n = custom_gen_generator.generate(x, num_instances, ds.descriptor, encoder)
         result = result + (custom_gen_n,)
