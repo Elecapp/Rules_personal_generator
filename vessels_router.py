@@ -18,7 +18,7 @@ from lore_sa.encoder_decoder import ColumnTransformerEnc
 from lore_sa.lore import Lore
 from lore_sa.neighgen import RandomGenerator, GeneticGenerator
 from lore_sa.surrogate import DecisionTreeSurrogate
-from main_api import rule_to_dict
+from covid_router import covid_rule_to_dict
 from main_vessels import create_and_train_model, load_data_from_csv, generate_neighborhood, GenerateDecisionTrees, \
     VesselsGenerator, GeneticVesselsGenerator
 
@@ -211,8 +211,8 @@ async def explain(request:VesselRequest):
 
     explanation = proba_lore.explain(instance, num_instances=request.num_samples)
     # convert explanation to json string using json.dumps
-    rule = rule_to_dict(explanation['rule'])
-    crRules = [rule_to_dict(cr) for cr in explanation['counterfactuals']]
+    rule = covid_rule_to_dict(explanation['rule'])
+    crRules = [covid_rule_to_dict(cr) for cr in explanation['counterfactuals']]
 
     return {
         'instance': instance.tolist(),
