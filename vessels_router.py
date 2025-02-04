@@ -20,7 +20,7 @@ from lore_sa.neighgen import RandomGenerator, GeneticGenerator
 from lore_sa.surrogate import DecisionTreeSurrogate
 from covid_router import covid_rule_to_dict
 from main_vessels import create_and_train_model, load_data_from_csv, generate_neighborhood, GenerateDecisionTrees, \
-    VesselsGenerator, GeneticVesselsGenerator
+    VesselsGenerator, GeneticVesselsGenerator, neighborhood_type_to_generators
 
 from pydantic import BaseModel
 
@@ -135,16 +135,16 @@ async def neighborhood(neigh_request: VesselRequest):
 
     logger.info(f"Neighborhood types: {neighborhood_types_str}")
 
-    instance = np.array(neigh_request.vessel_event.to_list())
+    instance_event = np.array(neigh_request.vessel_event.to_list())
     # make a deep copy of the instance
-    input_instance = np.copy(instance)
+    input_instance = np.copy(instance_event)
 
-    predicted_class = vessels_model.predict([instance])
+    predicted_class = vessels_model.predict([instance_event])
     logger.info(f"Predicted class: {predicted_class}")
-    neighbs = generate_neighborhood(instance, vessels_model, df_vessels, vessels_data_train, vessels_target_train, neigh_request.num_samples, neighborhood_types_str)
+    neighbs = generate_neighborhood(instance_event, vessels_model, df_vessels, vessels_data_train, vessels_target_train, neigh_request.num_samples, neighborhood_types_str)
 
     # create an empty data frame to aggregate the neighborhoods
-    df_neighbs = pd.DataFrame([instance], columns=df_vessels.columns[:-1])
+    df_neighbs = pd.DataFrame([instance_event], columns=df_vessels.columns[:-1])
     df_neighbs['predicted_class'] = predicted_class
     df_neighbs['neighborhood_type'] = 'instance'
 
@@ -181,44 +181,36 @@ async def explain(request:VesselRequest):
     logger.info(f"Received event: {request.vessel_event}")
     logger.info(f"Number of size of neighborhood: {request.num_samples}")
     neighborhood_types_str = request.neighborhood_types
-    selected_neighbor_generator = neighborhood_types_str[0]
-    instance = np.array(request.vessel_event.to_list())
+    logger.info(f"Neighborhood types: {neighborhood_types_str}")
 
-    predicted_class = vessels_model.predict([instance])
-    logger.info(f"Predicted class: {predicted_class}")
+    instance_event = np.array(request.vessel_event.to_list())
+
+    predicted_class_event = vessels_model.predict([instance_event])
+    logger.info(f"Predicted class: {predicted_class_event}")
 
     ds = TabularDataset(data=df_vessels, class_name='class N',categorial_columns=['class N'])
     encoder = ColumnTransformerEnc(ds.descriptor)
     bbox = sklearn_classifier_bbox.sklearnBBox(vessels_model)
     surrogate = DecisionTreeSurrogate()
-    generator = None
-    if selected_neighbor_generator == 'random':
-        generator = RandomGenerator(bbox, ds, encoder)
-    if selected_neighbor_generator == 'genetic':
-        generator = GeneticGenerator(bbox, ds, encoder)
-    if selected_neighbor_generator == 'custom':
-        classifiers_generator = GenerateDecisionTrees()
-        classifiers = classifiers_generator.decision_trees(vessels_data_train, vessels_target_train)
-        generator = VesselsGenerator(bbox, ds, encoder, vessels_data_train, classifiers, 0.05)
-    if selected_neighbor_generator == 'genetic':
-        generator = GeneticGenerator(bbox, ds, encoder)
-    if selected_neighbor_generator == 'custom_genetic':
-        classifiers_generator = GenerateDecisionTrees()
-        classifiers = classifiers_generator.decision_trees(vessels_data_train, vessels_target_train)
-        generator = GeneticVesselsGenerator(bbox, ds, encoder, vessels_data_train, classifiers, 0.05)
 
-    proba_lore = Lore(bbox, ds, encoder, generator, surrogate)
+    generators = neighborhood_type_to_generators(neighborhood_types_str, bbox, ds, encoder, vessels_data_train, vessels_target_train)
 
-    explanation = proba_lore.explain(instance, num_instances=request.num_samples)
-    # convert explanation to json string using json.dumps
-    rule = covid_rule_to_dict(explanation['rule'])
-    crRules = [covid_rule_to_dict(cr) for cr in explanation['counterfactuals']]
-
-    return {
-        'instance': instance.tolist(),
-        'predicted_class': predicted_class[0],
-        'explanation': {
+    explanations = {}
+    for gen in generators:
+        spec_lore = Lore(bbox, ds, encoder, gen, surrogate)
+        explanation = spec_lore.explain(instance_event, num_instances=request.num_samples)
+        # convert explanation to json string using json.dumps
+        rule = covid_rule_to_dict(explanation['rule'])
+        crRules = [covid_rule_to_dict(cr) for cr in explanation['counterfactuals']]
+        explanations[gen.__class__.__name__] = {
             'rule': rule,
             'counterfactuals': crRules
         }
+
+    print(explanations)
+
+    return {
+        'instance': instance_event.tolist(),
+        'predicted_class': predicted_class_event[0],
+        'explanations': explanations
     }
