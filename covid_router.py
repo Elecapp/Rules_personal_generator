@@ -37,7 +37,6 @@ else:
     model = create_and_train_model(res)
     joblib.dump(model, model_pkl_file)
 
-logger.info(f"Model: {model}")
 transformer = model.named_steps['columntransformer']
 reducer = Pipeline(steps=[
     ('columntransformer', transformer),
@@ -142,9 +141,15 @@ async def neighborhood(request: CovidRequest):
     df_neighbs['predicted_class'] = predicted_class
     df_neighbs['neighborhood_type'] = 'instance'
 
+    df_train = res.copy()[res.columns[:-1]]
+    df_train['predicted_class'] = res[res.columns[-1]]
+    df_train['neighborhood_type'] = 'train'
+    df_neighbs = pd.concat([df_neighbs, df_train], ignore_index=True)
+
     for i, gen in enumerate(request.neighborhood_types):
         generator = generators[i]
         logger.info(f"Processing neighborhood type: {gen}")
+
         neighbs_z = generator.generate(z, request.num_samples, data.descriptor, encoder)
         neighbs = encoder.decode(neighbs_z)
         neighb_classes = model.predict(neighbs)
