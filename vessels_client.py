@@ -7,6 +7,7 @@ import json
 import altair as alt
 
 from main_vessels import load_data_from_csv
+from vessels_router import dataframe_to_vega
 
 alt.data_transformers.enable('default', max_rows=None)
 
@@ -43,72 +44,8 @@ def create_instance_visualization(vessel_event_values: list, filename: str = 'in
     response = requests.request("POST", url, data=json.dumps(payload), headers=headers)
     # the response contains the data in CSV format. Store it as a DataFrame
     df = pd.read_csv(io.StringIO(response.text))
-    print(df.columns)
-
-    # create a nominal colro scale for the neighborhood types
-    color_scale = alt.Scale(domain=['instance', 'train', 'random', 'custom', 'genetic', 'custom_genetic'],
-                            range=['#333333', '#66c2a5', '#fc8d62', '#8da0cb', '#e78ac3', '#a6d854'])
-
-    # create a chart of the projected points
-    brush = alt.selection_interval(
-        on="[pointerdown[event.altKey], pointerup] > pointermove",
-        name='brush'
-    )
-
-    chartUMAP = alt.Chart(df).mark_point().encode(
-        x='umap1:Q',
-        y='umap2:Q',
-        color=alt.when(brush).then(alt.Color('neighborhood_type:N', scale=color_scale)).otherwise(alt.value('lightgray')),
-        shape='predicted_class:N',
-        tooltip=attributes + ['predicted_class', 'neighborhood_type']
-    ).properties(
-        width=600,
-        height=600,
-        title='UMAP projection of the Vessels data'
-    )
-
-    chartUMAP = (chartUMAP.transform_filter(alt.datum.neighborhood_type != 'instance').add_params(brush)
-                 + chartUMAP.transform_filter(alt.datum.neighborhood_type == 'instance')
-                 )
-
-
-
-    chartClasses = (alt.Chart(df).mark_bar().encode(
-        x='predicted_class:N',
-        y='count()',
-        color=alt.Color('neighborhood_type:N', scale=color_scale),
-        column='neighborhood_type:N',
-        tooltip=['predicted_class', 'count()']
-    ).transform_filter(alt.datum.neighborhood_type != 'instance')
-    .transform_filter(brush) # filter the data based on the brush selection
-    .properties(
-        width=200,
-        height=200
-    ))
-
-    marginalCharts = (alt.Chart(df).mark_bar().encode(
-        y = alt.Y('count()', title=''),
-        color=alt.Color('neighborhood_type:N', scale=color_scale),
-        column=alt.Column('neighborhood_type:N', title=None)
-    ).transform_filter(alt.datum.neighborhood_type != 'instance').properties(
-        width=200,
-        height=100
-    ).transform_filter(brush))
-
-    attributeCharts = []
-    for attribute in attributes:
-        attributeBarChart = marginalCharts.encode(
-            x = alt.X(attribute, title=attribute)
-                .bin(maxbins=20),
-        ).properties(
-            title=attribute,
-        )
-        attributeCharts.append(attributeBarChart)
-
-    neighbsCharts = alt.vconcat(*attributeCharts)
-
-    (alt.vconcat(chartUMAP, chartClasses, neighbsCharts)
-     .save(filename))
+    dashboard = dataframe_to_vega(df)
+    dashboard.save(filename)
 
 
 if __name__ == '__main__':

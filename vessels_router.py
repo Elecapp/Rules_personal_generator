@@ -10,7 +10,9 @@ import io
 import fastapi
 import umap
 import umap.umap_ as umap
-from starlette.responses import StreamingResponse
+from starlette.responses import StreamingResponse, JSONResponse, Response
+
+import altair as alt
 
 from lore_sa.bbox import sklearn_classifier_bbox
 from lore_sa.dataset import TabularDataset
@@ -87,6 +89,69 @@ vessels_router = fastapi.APIRouter(
     tags=["Vessels"],
 )
 
+
+def dataframe_to_vega(df):
+    attributes = ['SpeedMinimum', 'SpeedQ1', 'SpeedMedian', 'SpeedQ3', 'DistanceStartShapeCurvature',
+                  'DistStartTrendAngle', 'DistStartTrendDevAmplitude', 'MaxDistPort', 'MinDistPort']
+    # create a nominal colro scale for the neighborhood types
+    color_scale = alt.Scale(domain=['instance', 'train', 'random', 'custom', 'genetic', 'custom_genetic'],
+                            range=['#333333', '#66c2a5', '#fc8d62', '#8da0cb', '#e78ac3', '#a6d854'])
+    # create a chart of the projected points
+    brush = alt.selection_interval(
+        on="[pointerdown[event.altKey], pointerup] > pointermove",
+        name='brush'
+    )
+    chartUMAP = alt.Chart(df).mark_point().encode(
+        x='umap1:Q',
+        y='umap2:Q',
+        color=alt.when(brush).then(alt.Color('neighborhood_type:N', scale=color_scale)).otherwise(
+            alt.value('lightgray')),
+        shape='predicted_class:N',
+        tooltip=attributes + ['predicted_class', 'neighborhood_type']
+    ).properties(
+        width=600,
+        height=600,
+        title='UMAP projection of the Vessels data'
+    )
+    chartUMAP = (chartUMAP.transform_filter(alt.datum.neighborhood_type != 'instance').add_params(brush)
+                 + chartUMAP.transform_filter(alt.datum.neighborhood_type == 'instance')
+                 )
+    chartClasses = (alt.Chart(df).mark_bar().encode(
+        x='predicted_class:N',
+        y='count()',
+        color=alt.Color('neighborhood_type:N', scale=color_scale),
+        column='neighborhood_type:N',
+        tooltip=['predicted_class', 'count()']
+    ).transform_filter(alt.datum.neighborhood_type != 'instance')
+    .transform_filter(brush)  # filter the data based on the brush selection
+    .properties(
+        width=200,
+        height=200
+    ))
+    marginalCharts = (alt.Chart(df).mark_bar().encode(
+        y=alt.Y('count()', title=''),
+        color=alt.Color('neighborhood_type:N', scale=color_scale),
+        column=alt.Column('neighborhood_type:N', title=None)
+    ).transform_filter(alt.datum.neighborhood_type != 'instance').properties(
+        width=200,
+        height=100
+    ).transform_filter(brush))
+    attributeCharts = []
+    for attribute in attributes:
+        attributeBarChart = marginalCharts.encode(
+            x=alt.X(attribute, title=attribute)
+            .bin(maxbins=20),
+        ).properties(
+            title=attribute,
+        )
+        attributeCharts.append(attributeBarChart)
+    neighbsCharts = alt.vconcat(*attributeCharts)
+    dashboard = (alt.vconcat(chartUMAP, chartClasses, neighbsCharts))
+    return dashboard
+
+
+
+
 @vessels_router.post("/classify", tags=["Vessels"])
 async def classify_vessel(vessel_event: VesselEvent):
     logger.info(f"Received event: {vessel_event}")
@@ -130,24 +195,45 @@ async def neighborhood(neigh_request: VesselRequest):
     """
     logger.info(f"Received event: {neigh_request.vessel_event}")
     logger.info(f"Number of samples: {neigh_request.num_samples}")
-    # transform the integer neighborhood_types into a list of strings according to the bits
-    neighborhood_types_str = neigh_request.neighborhood_types
+    logger.info(f"Neighborhood types: {neigh_request.neighborhood_types}")
 
+    df_neighbs = await compute_neighborhoods(neigh_request)
+
+    # return df_neighbs as a csv data
+    stream = io.StringIO()
+    df_neighbs.to_csv(stream, index=False)
+    response = StreamingResponse(iter([stream.getvalue()]), media_type="text/csv")
+    response.headers["Content-Disposition"] = "attachment; filename=neighborhood.csv"
+
+    return response
+
+@vessels_router.post("/neighborhood/visualization", tags=["Vessels"])
+async def neighborhood_visualization(neigh_request: VesselRequest):
+    logger.info(f"Received event: {neigh_request.vessel_event}")
+    logger.info(f"Number of size of neighborhood: {neigh_request.num_samples}")
+    neighborhood_types_str = neigh_request.neighborhood_types
     logger.info(f"Neighborhood types: {neighborhood_types_str}")
 
+    df_neighbs = await compute_neighborhoods(neigh_request)
+    view = dataframe_to_vega(df_neighbs).to_json()
+
+    return Response(content=view, media_type="application/json")
+
+
+
+async def compute_neighborhoods(neigh_request):
+    neighborhood_types_str = neigh_request.neighborhood_types
     instance_event = np.array(neigh_request.vessel_event.to_list())
     # make a deep copy of the instance
     input_instance = np.copy(instance_event)
-
     predicted_class = vessels_model.predict([instance_event])
     logger.info(f"Predicted class: {predicted_class}")
-    neighbs = generate_neighborhood(instance_event, vessels_model, df_vessels, vessels_data_train, vessels_target_train, neigh_request.num_samples, neighborhood_types_str)
-
+    neighbs = generate_neighborhood(instance_event, vessels_model, df_vessels, vessels_data_train, vessels_target_train,
+                                    neigh_request.num_samples, neighborhood_types_str)
     # create an empty data frame to aggregate the neighborhoods
     df_neighbs = pd.DataFrame([instance_event], columns=df_vessels.columns[:-1])
     df_neighbs['predicted_class'] = predicted_class
     df_neighbs['neighborhood_type'] = 'instance'
-
     for i, neighb in enumerate(neighbs):
         logger.info(f"Processing neighborhood type: {neighborhood_types_str[i]}")
         neighb_classes = vessels_model.predict(neighb)
@@ -160,21 +246,12 @@ async def neighborhood(neigh_request: VesselRequest):
         neighb_df['neighborhood_type'] = neighborhood_types_str[i]
 
         df_neighbs = pd.concat([df_neighbs, neighb_df], ignore_index=True)
-
     # apply UMAP to the neighborhood data. Only to the features contained in the original df_vessels
     embedding = reducer.transform(df_neighbs[df_vessels.columns[:-1]])
     df_neighbs['umap1'] = embedding[:, 0]
     df_neighbs['umap2'] = embedding[:, 1]
+    return df_neighbs
 
-
-
-    # return df_neighbs as a csv data
-    stream = io.StringIO()
-    df_neighbs.to_csv(stream, index=False)
-    response = StreamingResponse(iter([stream.getvalue()]), media_type="text/csv")
-    response.headers["Content-Disposition"] = "attachment; filename=neighborhood.csv"
-
-    return response
 
 @vessels_router.post("/explain", tags=["Vessels"])
 async def explain(request:VesselRequest):
