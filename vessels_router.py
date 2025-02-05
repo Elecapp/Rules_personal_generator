@@ -200,14 +200,10 @@ async def explain(request:VesselRequest):
         spec_lore = Lore(bbox, ds, encoder, gen, surrogate)
         explanation = spec_lore.explain(instance_event, num_instances=request.num_samples)
         # convert explanation to json string using json.dumps
-        rule = covid_rule_to_dict(explanation['rule'])
-        crRules = [covid_rule_to_dict(cr) for cr in explanation['counterfactuals']]
-        explanations[gen.__class__.__name__] = {
-            'rule': rule,
-            'counterfactuals': crRules
-        }
+        # rule = covid_rule_to_dict(explanation['rule'])
+        # crRules = [covid_rule_to_dict(cr) for cr in explanation['counterfactuals']]
+        explanations[gen.__class__.__name__] = explanation
 
-    print(explanations)
 
     return {
         'instance': instance_event.tolist(),
