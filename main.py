@@ -132,6 +132,51 @@ class ProbabilitiesWeightBasedGenerator(NeighborhoodGenerator):
         pass
 
 
+class FraunhoferCovidGenerator(NeighborhoodGenerator):
+    def __init__(self, bbox: AbstractBBox, dataset: Dataset, encoder: EncDec, ocr=0.1):
+        super().__init__(bbox, dataset, encoder, ocr)
+        self.preprocess = bbox.bbox.named_steps.get('columntransformer')
+        self.covid_transitions = {
+            "c1": ["c1"] * 688 + ["c2"] * 103 + ["c3"] * 9,
+            "c2": ["c1"] * 61 + ["c2"] * 387 + ["c3"] * 102 + ["c4"] * 2,
+            "c3": ["c2"] * 80 + ["c3"] * 1022 + ["c4"] * 117,
+            "c4": ["c3"] * 118 + ["c4"] * 587
+        }
+
+        self.mobility_transitions = {
+            "m1": ["m1"] * 409 + ["m2"] * 60 + ["m3"] * 2,
+            "m2": ["m1"] * 10 + ["m2"] * 305 + ["m3"] * 176 + ["m4"] * 7,
+            "m3": ["m2"] * 133 + ["m3"] * 1270 + ["m4"] * 166,
+            "m4": ["m1"] * 52 + ["m2"] * 1 + ["m3"] * 141 + ["m4"] * 544
+        }
+
+    def perturb_one_instance(self, z):
+        x = self.encoder.decode(z.reshape(1, -1))[0]
+
+        new_instance = x.copy()
+        new_instance["Weeks_passed"] = x["Weeks_passed"] + random.randint(-3, 3)
+        new_instance["Days_passed"] = new_instance["Weeks_passed"] * 7
+
+        for i in range(6, 0, -1):
+            covid_level = new_instance[f"Week{i + 1}_Covid"] if i < 6 else new_instance["Week6_Covid"]
+            new_instance[f"Week{i}_Covid"] = random.choice(self.covid_transitions[covid_level])
+
+        for i in range(6, 0, -1):
+            mobility_level = new_instance[f"Week{i + 1}_Mobility"] if i < 6 else new_instance["Week6_Mobility"]
+            new_instance[f"Week{i}_Mobility"] = random.choice(self.mobility_transitions[mobility_level])
+
+        return new_instance
+
+    def generate(self, z: np.array, num_instances: int, descriptor: dict, encoder):
+        instances = []
+        for _ in range(num_instances):
+            new_x = self.perturb_one_instance(z)
+            instances.append(new_x)
+        z_instances = encoder.encode(instances)
+        z_instances.append(z.copy())
+
+        return z_instances
+
 def load_data_from_csv():
     df = pd.read_csv("datasets/Final_data.csv")
 

@@ -235,11 +235,12 @@ async def compute_neighborhoods(neigh_request):
     df_neighbs['predicted_class'] = predicted_class
     df_neighbs['neighborhood_type'] = 'instance'
     for i, neighb in enumerate(neighbs):
-        logger.info(f"Processing neighborhood type: {neighborhood_types_str[i]}")
-        neighb_classes = vessels_model.predict(neighb)
+        label = neighb[0]
+        logger.info(f"Processing neighborhood type: {label}")
+        neighb_classes = vessels_model.predict(neighb[1])
         # create a dataframe containing all the columns of neighb, plus and the predicted class and the string label
-        neighb_df = pd.DataFrame(neighb, columns=df_vessels.columns[:-1])
-        if neighborhood_types_str[i] == 'train':
+        neighb_df = pd.DataFrame(neighb[1], columns=df_vessels.columns[:-1])
+        if label == 'train':
             neighb_df['predicted_class'] = vessels_target_train
         else:
             neighb_df['predicted_class'] = neighb_classes
@@ -273,13 +274,13 @@ async def explain(request:VesselRequest):
     generators = neighborhood_type_to_generators(neighborhood_types_str, bbox, ds, encoder, vessels_data_train, vessels_target_train)
 
     explanations = {}
-    for gen in generators:
+    for (n, gen) in generators:
         spec_lore = Lore(bbox, ds, encoder, gen, surrogate)
         explanation = spec_lore.explain(instance_event, num_instances=request.num_samples)
         # convert explanation to json string using json.dumps
         # rule = covid_rule_to_dict(explanation['rule'])
         # crRules = [covid_rule_to_dict(cr) for cr in explanation['counterfactuals']]
-        explanations[gen.__class__.__name__] = explanation
+        explanations[n] = explanation
 
 
     return {

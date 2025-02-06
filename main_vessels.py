@@ -315,20 +315,20 @@ def neighborhood_type_to_generators(neighborhood_types:[str], bbox, ds, encoder,
     generators = []
     if 'random' in neighborhood_types:
         random_n_generator = RandomGenerator(bbox, ds, encoder)
-        generators.append(random_n_generator)
+        generators.append(('random', random_n_generator))
     if 'custom' in neighborhood_types:
         classifiers_generator = GenerateDecisionTrees()
         classifiers = classifiers_generator.decision_trees(data_train, target_train)
         custom_generator = VesselsGenerator(bbox, ds, encoder, data_train, classifiers, 0.05)
-        generators.append(custom_generator)
+        generators.append(('custom', custom_generator))
     if 'genetic' in neighborhood_types:
         genetic_n_generator = GeneticGenerator(bbox, ds, encoder)
-        generators.append(genetic_n_generator)
+        generators.append(('genetic', genetic_n_generator))
     if 'custom_genetic' in neighborhood_types:
         classifiers_generator = GenerateDecisionTrees()
         classifiers = classifiers_generator.decision_trees(data_train, target_train)
         custom_gen_generator = GeneticVesselsGenerator(bbox, ds, encoder, data_train, classifiers, 0.05)
-        generators.append(custom_gen_generator)
+        generators.append(('custom_genetic', custom_gen_generator))
 
     return generators
 
@@ -342,12 +342,12 @@ def generate_neighborhood(x, model, data, X_feat, y, num_instances=100, neighbor
 
 
     if 'train' in neighborhood_types:
-        result = result + (X_feat.values,)
+        result = result + (('train', X_feat.values),)
 
     generators = neighborhood_type_to_generators(neighborhood_types, bbox, ds, encoder, X_feat, y)
-    for g in generators:
+    for (n, g) in generators:
         gen_neighb = g.generate(x, num_instances, ds.descriptor, encoder)
-        result = result + (gen_neighb, )
+        result = result + ((n, gen_neighb), )
     return result
 
 
