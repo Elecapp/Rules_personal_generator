@@ -52,7 +52,7 @@ class VesselEvent(BaseModel):
 class VesselRequest(BaseModel):
     vessel_event: VesselEvent
     num_samples: int = 500
-    neighborhood_types: List[Literal['train', 'random', 'custom', 'genetic', 'custom_genetic']]
+    neighborhood_types: List[Literal['train', 'random', 'custom', 'genetic', 'custom_genetic', 'baseline']]
 
 
 # ===================================================================================
@@ -78,12 +78,6 @@ reducer.fit(vessels_data_train)
 
 # ===================================================================================
 
-NEIGHB_TRAIN =          0b00001
-NEIGHB_RANDOM =         0b00010
-NEIGHB_CUSTOM =         0b00100
-NEIGHB_GENETIC =        0b01000
-NEIGHB_CUSTOM_GENETIC = 0b10000
-
 vessels_router = fastapi.APIRouter(
     prefix="/vessels",
     tags=["Vessels"],
@@ -94,8 +88,8 @@ def dataframe_to_vega(df):
     attributes = ['SpeedMinimum', 'SpeedQ1', 'SpeedMedian', 'SpeedQ3', 'DistanceStartShapeCurvature',
                   'DistStartTrendAngle', 'DistStartTrendDevAmplitude', 'MaxDistPort', 'MinDistPort']
     # create a nominal colro scale for the neighborhood types
-    color_scale = alt.Scale(domain=['instance', 'train', 'random', 'custom', 'genetic', 'custom_genetic'],
-                            range=['#333333', '#66c2a5', '#fc8d62', '#8da0cb', '#e78ac3', '#a6d854'])
+    color_scale = alt.Scale(domain=['instance', 'train', 'random', 'custom', 'genetic', 'custom_genetic', 'baseline'],
+                            range=['#333333', '#66c2a5', '#fc8d62', '#8da0cb', '#e78ac3', '#a6d854', '#e5c494'])
     # create a chart of the projected points
     brush = alt.selection_interval(
         on="[pointerdown[event.altKey], pointerup] > pointermove",
