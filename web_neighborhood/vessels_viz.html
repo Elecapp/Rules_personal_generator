@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>JSON API Request</title>
+    <!-- Include CSS files -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap-grid.min.css">
+    <!-- Include JavaScript files -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js" integrity="sha384-IQsoLXl5PILFhosVNubq5LC7Qb9DXgDA9i+tQ8Zj3iwWAwPtgFTxbJ8NT4GN1R8p" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.min.js" integrity="sha384-cVKIPhGWiC2Al4u+LWgxfKTRIcfu0JTxR+EQDz/bgldoEyl4H0zUF0QKbrJ0EcQF" crossorigin="anonymous"></script>
+    <style>
+        .container {
+            width: 600px;
+            margin: auto;
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+        }
+        .response {
+            padding: 10px;
+            border: 1px solid #ccc;
+            background-color: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>JSON API Request</h1>
+        <form id="jsonForm" method="POST" action="/api" class="row g-3">
+            <div class="col-sm-6">
+                <label for="SpeedMinimum">Speed Minimum:</label>
+                <input type="range" id="SpeedMinimum" value="0" min="0" max="6" step="0.1" class="form-range">
+            </div>
+            <div class="col-sm-6">
+                <label for="SpeedQ1">Speed Q1:</label>
+                <input type="range" id="SpeedQ1" value="0" min="0" max="6" step="0.1" class="form-range">
+            </div>
+            <div class="col-sm-6">
+                <label for="SpeedMedian">Speed Median:</label>
+                <input type="range" id="SpeedMedian" value="0" min="0" max="6" step="0.1" class="form-range">
+            </div>
+            <div class="col-sm-6">
+                <label for="SpeedQ3">Speed Q3:</label>
+                <input type="range" id="SpeedQ3" value="0" min="0" max="6" step="0.1" class="form-range">
+            </div>
+
+            <div class="col-sm-4">
+                <label for="DistanceStartShapeCurvature">Distance Start Shape Curvature:</label>
+                <input type="range" id="DistanceStartShapeCurvature" value="0" min="0" max="6" step="0.1" class="form-range">
+            </div>
+
+            <div class="col-sm-4">
+                <label for="DistanceStartTrendAngle">Distance Start Trend Angle:</label>
+                <input type="range" id="DistanceStartTrendAngle" value="0" min="0" max="6" step="0.1" class="form-range">
+            </div>
+
+            <div class="col-sm-4">
+                <label for="DistStartTrendDevAmplitude">Dist Start Trend Dev Amplitude:</label>
+                <input type="range" id="DistStartTrendDevAmplitude" value="0" min="0" max="6" step="0.1" class="form-range">
+            </div>
+
+            <div class="col-sm-6">
+                <label for="MaxDistPort">Max Dist Port:</label>
+                <input type="range" id="MaxDistPort" value="0" min="0" max="6" step="0.1" class="form-range">
+            </div>
+
+            <div class="col-sm-6">
+                <label for="MinDistPort">Min Dist Port:</label>
+                <input type="range" id="MinDistPort" value="0" min="0" max="6" step="0.1" class="form-range">
+            </div>
+
+            <button type="submit" class="btn btn-primary">Submit</button>
+        </form>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            $("#jsonForm").on("submit", function(event) {
+                event.preventDefault();
+
+                var formData = new FormData($(this)[0]);
+                // $.ajax({
+                //     url: "/api",
+                //     type: "POST",
+                //     data: formData,
+                //     success: function(data) {
+                //         $("#response").html("Success! Response: " + JSON.stringify(data));
+                //     },
+                //     error: function(xhr, status, error) {
+                //         var message = xhr.statusText || error;
+                //         $("#response").html("Error: " + message);
+                //     }
+                // });
+                console.log('form data', formData)
+            });
+        });
+    </script>
+
+    <div id="response"></div>
+</body>
+</html>
