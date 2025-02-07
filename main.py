@@ -104,20 +104,20 @@ class ProbabilitiesWeightBasedGenerator(NeighborhoodGenerator):
         for _ in range(num_instances):
             perturbed_arr = z1.copy()
 
-            for val in range(0, 3):  # covid
+            for val in range(0, 5):  # covid
                 ref_val = int(perturbed_arr[val])
                 perturbed_arr[val] = random.choices(choices, weights=covid_weights[ref_val])[0]
 
-            for val in range(3, 7):  # mobility
+            for val in range(5, 11):  # mobility
                 ref_val = int(perturbed_arr[val])
                 perturbed_arr[val] = random.choices(choices, weights=mobility_weights[ref_val])[0]
 
-            perturbed_arr[7] = random.choice(range(42, 442, 7))
-            perturbed_arr[8] = random.choice(range(7, 148, 7))
+            perturbed_arr[11] = random.choice(range(42, 442, 7))
+            #perturbed_arr[8] = random.choice(range(7, 148, 7))
 
-            covid_sec = [f"c{int(v)}" for v in perturbed_arr[0:3]]
-            mob_sec = [f"m{int(v)}" for v in perturbed_arr[3:7]]
-            tot = [*covid_sec, *mob_sec, perturbed_arr[7], perturbed_arr[8]]
+            covid_sec = [f"c{int(v)}" for v in perturbed_arr[0:5]]
+            mob_sec = [f"m{int(v)}" for v in perturbed_arr[5:11]]
+            tot = [*covid_sec, *mob_sec, perturbed_arr[11]]
 
             #dec = encoder.encode([tot])[0]
 
@@ -135,8 +135,9 @@ class ProbabilitiesWeightBasedGenerator(NeighborhoodGenerator):
 def load_data_from_csv():
     df = pd.read_csv("datasets/Final_data.csv")
 
-    df = df.loc[:, ['Week5_Covid', 'Week4_Covid', 'Week3_Covid', 'Week5_Mobility', 'Week4_Mobility',
-                    'Week3_Mobility', 'Week2_Mobility', 'Days_passed', 'Duration', 'Class_label']]
+    df = df.loc[:,
+         ['Week6_Covid', 'Week5_Covid', 'Week4_Covid', 'Week3_Covid', 'Week2_Covid', 'Week6_Mobility',
+          'Week5_Mobility', 'Week4_Mobility', 'Week3_Mobility', 'Week2_Mobility', 'Week1_Mobility', 'Days_passed','Class_label']]
 
     mask = df.drop(["Class_label"], axis=1).isna().all(axis=1) & df['Class_label'].notna()
     result_df = df[~mask]
@@ -148,19 +149,20 @@ def load_data_from_csv():
 
 def create_and_train_model(result_df):
     y = result_df["Class_label"].values
-    X_feat = result_df.loc[:, 'Week5_Covid':'Duration'].values
+    X_feat = result_df.loc[:,'Week6_Covid':'Days_passed'].values
     covid_categories = ['NONE', 'c1', 'c2', 'c3', 'c4']
     mobility_categories = ['NONE', 'm1', 'm2', 'm3', 'm4']
     enc = OrdinalEncoder(
-        categories=[covid_categories, covid_categories, covid_categories, mobility_categories, mobility_categories,
-                    mobility_categories, mobility_categories])
+        categories=[covid_categories, covid_categories, covid_categories,covid_categories,covid_categories, mobility_categories, mobility_categories,
+                    mobility_categories, mobility_categories,mobility_categories,mobility_categories])
     numerical_preprocessor = StandardScaler()
     preprocessor = ColumnTransformer(
         [
-            ("ordinal-encoder", enc, list(range(0, 7))),
-            ("standard_scaler", numerical_preprocessor, list(range(7, 9))),
+            ("ordinal-encoder", enc, list(range(0, 11))),
+            ("standard_scaler", numerical_preprocessor, list(range(11, 12))),
         ]
     )
+    check = preprocessor.fit_transform(X_feat)
     clf = RandomForestClassifier(n_estimators=100, random_state=0)
     model = make_pipeline(preprocessor, clf)
 
@@ -345,15 +347,15 @@ def new_lore(res, model):
 
     print(prediction)
 
-    df_15 = pd.read_csv('datasets/selected_train_instances_15.csv', sep=';')
+    #df_15 = pd.read_csv('datasets/selected_train_instances_15.csv', sep=';')
 
 
     bbox = sklearn_classifier_bbox.sklearnBBox(model)
     #data = TabularDataset(data=df_15, class_name="Class_label")
     data = TabularDataset(data=res, class_name='Class_label')
     print(data.df)
-    x = df_15.iloc[7, :-1].values #7
-    #x = data.df.iloc[45, :-1].values
+    #x = df_15.iloc[7, :-1].values #7
+    x = data.df.iloc[45, :-1].values
     print("instance is:", x)
     print('model prediction is', model.predict([x]))
 
@@ -388,15 +390,15 @@ def calculate_distance(X1: np.array, X2: np.array, y_1: np.array = None, y_2: np
 
 if __name__ == '__main__':
     res = load_data_from_csv()
-    model_pkl_file = 'models/model.pkl'
-    if os.path.exists(model_pkl_file):
-        model = joblib.load(model_pkl_file)
-    else:
-        model = create_and_train_model(res)
-        joblib.dump(model, model_pkl_file)
-
+    #model_pkl_file = 'models/model.pkl'
+    #if os.path.exists(model_pkl_file):
+    #    model = joblib.load(model_pkl_file)
+    #else:
+    #    model = create_and_train_model(res)
+    #    joblib.dump(model, model_pkl_file)
+    model = create_and_train_model(res)
     new_lore(res, model)
-    compute_statistics_distance(res, model)
+    #compute_statistics_distance(res, model)
 
    #UMAPMapper()
 
