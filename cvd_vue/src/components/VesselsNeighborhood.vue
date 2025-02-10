@@ -20,7 +20,7 @@
               description="The minimum speed in the period">
                 <label for="SpeedMinimum-i">Speed Minimum: {{form.SpeedMinimum}}</label>
                 <b-form-input id="SpeedMinimum-i" v-model="form.SpeedMinimum" required
-                type="range" :min="0" :max="20" :step="0.1"/>
+                type="range" :min="0" :max="20" :step="0.01"/>
               </b-form-group>
             </b-col>
             <b-col cols="6">
@@ -28,7 +28,7 @@
                             description="The first quartile of alue in the period">
                 <label for="SpeedQ1-i">Speed Q1: {{form.SpeedQ1}}</label>
                 <b-form-input id="SpeedQ1-i" v-model="form.SpeedQ1" required
-                type="range" :min="0" :max="20" :step="0.1"/>
+                type="range" :min="0" :max="22" :step="0.01"/>
               </b-form-group>
             </b-col>
           </b-row>
@@ -38,7 +38,7 @@
               description="The median speed in the period">
                 <label for="SpeedMedian-i">Speed Median: {{form.SpeedMedian}}</label>
                 <b-form-input id="SpeedMedian-i" v-model="form.SpeedMedian" required
-                type="range" :min="0" :max="20" :step="0.1"/>
+                type="range" :min="0" :max="22" :step="0.01"/>
               </b-form-group>
             </b-col>
             <b-col cols="6">
@@ -46,7 +46,7 @@
                             description="The third quartile of alue in the period">
                 <label for="SpeedQ1-i">Speed Q3: {{form.SpeedQ3}}</label>
                 <b-form-input id="SpeedQ3-i" v-model="form.SpeedQ3" required
-                type="range" :min="0" :max="20" :step="0.1"/>
+                type="range" :min="0" :max="22" :step="0.01"/>
               </b-form-group>
             </b-col>
           </b-row>
@@ -56,7 +56,7 @@
               description="The distance start shape curvature">
                 <label for="DistanceStartShapeCurvature-i">DistanceStartShapeCurvature: {{form.DistanceStartShapeCurvature}}</label>
                 <b-form-input id="DistanceStartShapeCurvature-i" v-model="form.DistanceStartShapeCurvature" required
-                type="range" :min="0" :max="20" :step="0.1"/>
+                type="range" :min="1" :max="180" :step="0.1"/>
               </b-form-group>
             </b-col>
             <b-col cols="4">
@@ -64,7 +64,7 @@
                             description="The trend angle">
                 <label for="DistanceStartTrendAngle-i">DistanceStartTrendAngle: {{form.DistanceStartTrendAngle}}</label>
                 <b-form-input id="DistanceStartTrendAngle-i" v-model="form.DistanceStartTrendAngle" required
-                type="range" :min="0" :max="20" :step="0.1"/>
+                type="range" :min="-2" :max="2" :step="0.01"/>
               </b-form-group>
             </b-col>
             <b-col cols="4">
@@ -72,7 +72,7 @@
                             description="The trend angle">
                 <label for="DistStartTrendDevAmplitude-i">DistStartTrendDevAmplitude: {{form.DistStartTrendDevAmplitude}}</label>
                 <b-form-input id="DistStartTrendDevAmplitude-i" v-model="form.DistStartTrendDevAmplitude" required
-                type="range" :min="0" :max="20" :step="0.1"/>
+                type="range" :min="0" :max="60" :step="0.01"/>
               </b-form-group>
             </b-col>
           </b-row>
@@ -82,7 +82,7 @@
               description="The maximum distance from port in the period">
                 <label for="MaxDistPort-i">Maximum distance from port: {{form.MaxDistPort}}</label>
                 <b-form-input id="MaxDistPort-i" v-model="form.MaxDistPort" required
-                type="range" :min="0" :max="20" :step="0.1"/>
+                type="range" :min="0" :max="300" :step="0.1"/>
               </b-form-group>
             </b-col>
             <b-col cols="6">
@@ -90,7 +90,7 @@
                             description="The minimum distance from port in the period">
                 <label for="MinDistPort-i">Minimum distance from port: {{form.MinDistPort}}</label>
                 <b-form-input id="MinDistPort-i" v-model="form.MinDistPort" required
-                type="range" :min="0" :max="20" :step="0.1"/>
+                type="range" :min="0" :max="300" :step="0.1"/>
               </b-form-group>
             </b-col>
           </b-row>
