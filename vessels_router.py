@@ -144,7 +144,11 @@ def dataframe_to_vega(df):
     return dashboard
 
 
+@vessels_router.get("/descriptor", tags=["Vessels"])
+async def descriptor():
+    ds = TabularDataset(data=df_vessels, class_name='class N',categorial_columns=['class N'])
 
+    return ds.descriptor
 
 @vessels_router.post("/classify", tags=["Vessels"])
 async def classify_vessel(vessel_event: VesselEvent):
