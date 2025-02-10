@@ -5,6 +5,11 @@
 const path = require('path')
 
 module.exports = {
+  externals: [
+    "vega": "vega",
+    "vega-lite": "vegaLite",
+    "vega-embed": "vegaEmbed"
+  ],
   dev: {
 
     // Paths
@@ -72,5 +77,5 @@ module.exports = {
     // `npm run build --report`
     // Set to `true` or `false` to always turn it on or off
     bundleAnalyzerReport: process.env.npm_config_report
-  }
+  },
 }
