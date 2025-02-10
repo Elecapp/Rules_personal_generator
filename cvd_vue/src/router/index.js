@@ -1,7 +1,8 @@
 import Vue from 'vue';
 import Router from 'vue-router';
 import PatientClassifier from '@/components/PatientClassifier';
-import VesselsNeighborhood from '../components/VesselsNeighborhood.vue';
+import VesselsNeighborhood from '../components/VesselsNeighborhood';
+import VesselsRules from '../components/VesselsRules';
 
 Vue.use(Router);
 
@@ -16,6 +17,11 @@ export default new Router({
       path: '/vessels-neighborhood',
       name: 'VesselsNeighborhood',
       component: VesselsNeighborhood,
+    },
+    {
+      path: '/vessels-rules',
+      name: 'VesselsRules',
+      component: VesselsRules,
     },
   ],
 });
