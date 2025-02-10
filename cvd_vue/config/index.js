@@ -5,11 +5,11 @@
 const path = require('path')
 
 module.exports = {
-  externals: [
+  externals: {
     "vega": "vega",
     "vega-lite": "vegaLite",
     "vega-embed": "vegaEmbed"
-  ],
+  },
   dev: {
 
     // Paths
