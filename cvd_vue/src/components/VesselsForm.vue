@@ -43,7 +43,9 @@ export default {
           MinDistPort: this.form.MinDistPort,
         },
         num_samples: this.neighb_parameters.NumSamples,
-        neighborhood_types: this.neighb_parameters.NeighbTypes,
+        neighborhood_types: this.neighb_types_options
+          .filter(v => this.neighb_parameters.NeighbTypes.includes(v.value))
+          .map(v => v.value),
       };
       console.log('form', request);
       const strValue = JSON.stringify(request);

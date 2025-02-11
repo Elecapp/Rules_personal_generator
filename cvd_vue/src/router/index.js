@@ -1,8 +1,8 @@
 import Vue from 'vue';
 import Router from 'vue-router';
-import PatientClassifier from '@/components/PatientClassifier';
 import VesselsNeighborhood from '../components/VesselsNeighborhood';
 import VesselsRules from '../components/VesselsRules';
+import LandingPage from "../components/LandingPage.vue";
 
 Vue.use(Router);
 
@@ -10,8 +10,8 @@ export default new Router({
   routes: [
     {
       path: '/',
-      name: 'PatientClassifier',
-      component: PatientClassifier,
+      name: 'LandingPage',
+      component: LandingPage,
     },
     {
       path: '/vessels-neighborhood',
