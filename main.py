@@ -132,7 +132,7 @@ class ProbabilitiesWeightBasedGenerator(NeighborhoodGenerator):
         pass
 
 
-class FraunhoferCovidGenerator(NeighborhoodGenerator):
+class GPTCovidGenerator(NeighborhoodGenerator):
     def __init__(self, bbox: AbstractBBox, dataset: Dataset, encoder: EncDec, ocr=0.1):
         super().__init__(bbox, dataset, encoder, ocr)
         self.preprocess = bbox.bbox.named_steps.get('columntransformer')
@@ -154,16 +154,19 @@ class FraunhoferCovidGenerator(NeighborhoodGenerator):
         x = self.encoder.decode(z.reshape(1, -1))[0]
 
         new_instance = x.copy()
-        new_instance["Weeks_passed"] = x["Weeks_passed"] + random.randint(-3, 3)
-        new_instance["Days_passed"] = new_instance["Weeks_passed"] * 7
+        weeks_passed = int(new_instance[11] / 7)
+        weeks_passed = weeks_passed + random.randint(-3, 3)
+        # 'Days_passed is at position index 11
+        new_instance[11] = weeks_passed * 7
 
-        for i in range(6, 0, -1):
-            covid_level = new_instance[f"Week{i + 1}_Covid"] if i < 6 else new_instance["Week6_Covid"]
-            new_instance[f"Week{i}_Covid"] = random.choice(self.covid_transitions[covid_level])
+        # for i in range(6, 0, -1):
+        for i in range(0, 5):
+            covid_level = new_instance[i]
+            new_instance[i] = random.choice(self.covid_transitions[covid_level])
 
-        for i in range(6, 0, -1):
-            mobility_level = new_instance[f"Week{i + 1}_Mobility"] if i < 6 else new_instance["Week6_Mobility"]
-            new_instance[f"Week{i}_Mobility"] = random.choice(self.mobility_transitions[mobility_level])
+        for i in range(5, 11):
+            mobility_level = new_instance[i]
+            new_instance[i] = random.choice(self.mobility_transitions[mobility_level])
 
         return new_instance
 
@@ -172,8 +175,8 @@ class FraunhoferCovidGenerator(NeighborhoodGenerator):
         for _ in range(num_instances):
             new_x = self.perturb_one_instance(z)
             instances.append(new_x)
+        instances.append(encoder.decode(z.reshape(1, -1))[0])
         z_instances = encoder.encode(instances)
-        z_instances.append(z.copy())
 
         return z_instances
 

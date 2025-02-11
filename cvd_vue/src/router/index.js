@@ -2,7 +2,8 @@ import Vue from 'vue';
 import Router from 'vue-router';
 import VesselsNeighborhood from '../components/VesselsNeighborhood';
 import VesselsRules from '../components/VesselsRules';
-import LandingPage from "../components/LandingPage.vue";
+import LandingPage from '../components/LandingPage';
+import COVIDNeighborhood from '../components/COVIDNeighborhood';
 
 Vue.use(Router);
 
@@ -22,6 +23,11 @@ export default new Router({
       path: '/vessels-rules',
       name: 'VesselsRules',
       component: VesselsRules,
+    },
+    {
+      path: '/covid-neighborhood',
+      name: 'COVIDNeighborhood',
+      component: COVIDNeighborhood,
     },
   ],
 });

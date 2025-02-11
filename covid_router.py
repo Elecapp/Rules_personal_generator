@@ -21,7 +21,7 @@ from lore_sa.encoder_decoder import ColumnTransformerEnc
 from lore_sa.lore import Lore
 from lore_sa.neighgen import RandomGenerator, GeneticGenerator
 from lore_sa.surrogate import DecisionTreeSurrogate
-from main import load_data_from_csv, create_and_train_model, ProbabilitiesWeightBasedGenerator, FraunhoferCovidGenerator
+from main import load_data_from_csv, create_and_train_model, ProbabilitiesWeightBasedGenerator, GPTCovidGenerator
 import altair as alt
 
 logger = logging.getLogger(__name__)
@@ -60,10 +60,10 @@ covid_router = fastapi.APIRouter(
 
 
 def dataframe_to_vega(df):
-    attributes = ['Week5_Covid', 'Week4_Covid', 'Week3_Covid', 'Week5_Mobility', 'Week4_Mobility',
-                    'Week3_Mobility', 'Week2_Mobility', 'Days_passed', 'Duration']
+    attributes = ['Week6_Covid', 'Week5_Covid', 'Week4_Covid', 'Week3_Covid', 'Week2_Covid', 'Week6_Mobility',
+          'Week5_Mobility', 'Week4_Mobility', 'Week3_Mobility', 'Week2_Mobility', 'Week1_Mobility', 'Days_passed']
     # create a nominal colro scale for the neighborhood types
-    color_scale = alt.Scale(domain=['instance', 'train', 'random', 'custom', 'genetic', 'fraunhofer'],
+    color_scale = alt.Scale(domain=['instance', 'train', 'random', 'custom', 'genetic', 'gpt'],
                             range=['#333333', '#66c2a5', '#fc8d62', '#8da0cb', '#e78ac3', '#a6d854'])
     # create a chart of the projected points
     #brush = alt.selection_interval(
@@ -108,41 +108,47 @@ def dataframe_to_vega(df):
     ).transform_filter(bind))
     attributeCharts = []
     for attribute in attributes:
-        attributeBarChart = marginalCharts.encode(
-            x=alt.X(attribute, title=attribute)
-            .bin(maxbins=20),
-        ).properties(
-            title=attribute,
-        )
+        if attribute == "day_passed":
+            attributeBarChart = marginalCharts.encode(
+                x=alt.X(attribute, title=attribute)
+                .bin(maxbins=20),
+            ).properties(
+                title=attribute,
+            )
+        else:
+            attributeBarChart = marginalCharts.encode(
+                x=alt.X(attribute, type="ordinal", title=attribute),
+            ).properties(
+                title=attribute,
+            )
         attributeCharts.append(attributeBarChart)
     neighbsCharts = alt.vconcat(*attributeCharts)
     dashboard = (alt.vconcat(chartUMAP, chartClasses, neighbsCharts))
     return dashboard
 
-
-
-
 class CovidEvent(BaseModel):
+    week6_covid: Literal['c1', 'c2', 'c3', 'c4']
     week5_covid: Literal['c1', 'c2', 'c3', 'c4']
     week4_covid: Literal['c1', 'c2', 'c3', 'c4']
     week3_covid: Literal['c1', 'c2', 'c3', 'c4']
+    week2_covid: Literal['c1', 'c2', 'c3', 'c4']
+    week6_mobility: Literal['m1', 'm2', 'm3', 'm4']
     week5_mobility: Literal['m1', 'm2', 'm3', 'm4']
     week4_mobility: Literal['m1', 'm2', 'm3', 'm4']
     week3_mobility: Literal['m1', 'm2', 'm3', 'm4']
     week2_mobility: Literal['m1', 'm2', 'm3', 'm4']
+    week1_mobility: Literal['m1', 'm2', 'm3', 'm4']
     days_passed: float
-    duration: float
 
     def to_list(self):
-        return [self.week5_covid, self.week4_covid, self.week3_covid,
-                self.week5_mobility, self.week4_mobility, self.week3_mobility, self.week2_mobility,
-                self.days_passed, self.duration]
-
+        return [self.week6_covid, self.week5_covid, self.week4_covid, self.week3_covid, self.week2_covid,
+                self.week6_mobility, self.week5_mobility, self.week4_mobility, self.week3_mobility,
+                self.week2_mobility, self.week1_mobility, self.days_passed]
 
 class CovidRequest(BaseModel):
     event: CovidEvent
     num_samples: int = 500
-    neighborhood_types: List[Literal['train', 'random', 'custom', 'genetic', 'fraunhofer']]
+    neighborhood_types: List[Literal['train', 'random', 'custom', 'genetic', 'gpt']]
 
 
 @covid_router.post("/classify")
@@ -186,9 +192,9 @@ def neighborhood_type_to_generators(neighborhood_types:[str], bbox, ds, encoder)
     if 'genetic' in neighborhood_types:
         genetic_n_generator = GeneticGenerator(bbox, ds, encoder)
         generators.append(('genetic',genetic_n_generator))
-    if 'fraunhofer' in neighborhood_types:
-        fraunhofer_generator = FraunhoferCovidGenerator(bbox, data, encoder, 'fraunhofer')
-        generators.append(('fraunhofer', fraunhofer_generator))
+    if 'gpt' in neighborhood_types:
+        gpt_generator = GPTCovidGenerator(bbox, data, encoder, 'gpt')
+        generators.append(('gpt', gpt_generator))
 
     return generators
 
