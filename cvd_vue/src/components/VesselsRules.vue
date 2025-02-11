@@ -43,8 +43,8 @@
 </template>
 
 <script>
-import VesselsForm from './VesselsForm.vue';
-import RuleViz from "./RuleViz.vue";
+import VesselsForm from './VesselsForm';
+import RuleViz from "./RuleViz";
 
 export default {
   name: 'VesselsRules',

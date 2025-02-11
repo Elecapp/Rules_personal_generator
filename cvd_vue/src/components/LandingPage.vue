@@ -20,9 +20,15 @@ export default {
         </b-card>
       </b-col>
       <b-col>
-        <b-card>
-          <b-card-title>COVID</b-card-title>
-          <b-list-group></b-list-group>
+        <b-card no-body header="COVID">
+          <b-list-group flush>
+            <b-list-group-item>
+              <b-link :to="{path:'/covid-neighborhood'}">Neighborhood exploration</b-link>
+            </b-list-group-item>
+            <b-list-group-item>
+              <b-link :to="{path:'/covid-rules'}">Rules exploration</b-link>
+            </b-list-group-item>
+          </b-list-group>
         </b-card>
       </b-col>
     </b-row>

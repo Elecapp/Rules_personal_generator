@@ -108,7 +108,7 @@ def dataframe_to_vega(df):
     ).transform_filter(bind))
     attributeCharts = []
     for attribute in attributes:
-        if attribute == "day_passed":
+        if attribute == "Days_passed":
             attributeBarChart = marginalCharts.encode(
                 x=alt.X(attribute, title=attribute)
                 .bin(maxbins=20),

@@ -38,7 +38,7 @@ export default {
         { text: 'Random generator', value: 'random' },
         { text: 'Custom', value: 'custom' },
         { text: 'Genetic', value: 'genetic' },
-        { text: 'Custom genetic', value: 'custom_genetic' },
+        { text: 'GPT', value: 'gpt' },
         { text: 'Baseline', value: 'baseline' },
       ],
     };
