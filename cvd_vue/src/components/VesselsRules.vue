@@ -80,7 +80,7 @@ export default {
       console.log('payload', strPayload);
       const strValue = strPayload;
 
-      fetch('http://localhost:10000/api/vessels/explain', {
+      fetch('/api/vessels/explain', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

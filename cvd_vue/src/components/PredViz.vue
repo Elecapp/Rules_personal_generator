@@ -6,11 +6,19 @@ export default {
       type: Object,
     },
   },
+  methods: {
+    formatValue(val) {
+      if (typeof val === 'number') {
+        return Number(val).toFixed(2);
+      }
+      return val;
+    },
+  },
 };
 </script>
 
 <template>
-  <span>{{predicate["attr"]}} {{predicate["op"]}} {{Number(predicate["val"]).toFixed(2)}}</span>
+  <span>{{predicate["attr"]}} {{predicate["op"]}} {{formatValue(predicate["val"])}}</span>
 </template>
 
 <style scoped>

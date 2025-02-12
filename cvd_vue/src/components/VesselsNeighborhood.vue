@@ -40,7 +40,7 @@ export default {
       console.log('payload', strPayload)
       const strValue = strPayload;
 
-      fetch('http://localhost:10000/api/vessels/neighborhood/visualization', {
+      fetch('/api/vessels/neighborhood/visualization', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

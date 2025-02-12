@@ -12,11 +12,11 @@ export default {
     };
   },
   methods: {
-    sendRequest(strPayload){
-      console.log('payload', strPayload)
+    sendRequest(strPayload) {
+      console.log('payload', strPayload);
       const strValue = strPayload;
 
-      fetch('http://localhost:10000/api/covid/neighborhood/visualization', {
+      fetch('/api/covid/neighborhood/visualization', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -33,7 +33,7 @@ export default {
         ).catch((error) => {
           alert('There was an error processing your request');
         });
-    }
+    },
   },
 };
 </script>

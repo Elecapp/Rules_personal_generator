@@ -34,7 +34,7 @@ export default {
       console.log('payload', strPayload);
       const strValue = strPayload;
 
-      fetch('http://localhost:10000/api/covid/explain', {
+      fetch('/api/covid/explain', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

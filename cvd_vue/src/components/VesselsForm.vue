@@ -24,7 +24,7 @@ export default {
         { text: 'Custom', value: 'custom' },
         { text: 'Genetic', value: 'genetic' },
         { text: 'Custom genetic', value: 'custom_genetic' },
-        { text: 'Baseline', value: 'baseline' },
+        { text: 'Baseline Train', value: 'baseline' },
       ],
     };
   },

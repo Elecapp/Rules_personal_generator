@@ -39,7 +39,7 @@ export default {
         { text: 'Custom', value: 'custom' },
         { text: 'Genetic', value: 'genetic' },
         { text: 'GPT', value: 'gpt' },
-        { text: 'Baseline', value: 'baseline' },
+        { text: 'Baseline Train', value: 'baseline' },
       ],
     };
   },
