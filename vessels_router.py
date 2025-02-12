@@ -91,10 +91,11 @@ def dataframe_to_vega(df):
     color_scale = alt.Scale(domain=['instance', 'train', 'random', 'custom', 'genetic', 'custom_genetic', 'baseline'],
                             range=['#333333', '#66c2a5', '#fc8d62', '#8da0cb', '#e78ac3', '#a6d854', '#e5c494'])
     # create a chart of the projected points
-    brush = alt.selection_interval(
-        on="[pointerdown[event.altKey], pointerup] > pointermove",
-        name='brush'
-    )
+    # brush = alt.selection_interval(
+    #     on="[pointerdown[event.altKey], pointerup] > pointermove",
+    #     name='brush'
+    # )
+    brush = alt.selection_interval(bind='scales')
     chartUMAP = alt.Chart(df).mark_point().encode(
         x='umap1:Q',
         y='umap2:Q',

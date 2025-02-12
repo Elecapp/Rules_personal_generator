@@ -24,7 +24,7 @@ api_app = FastAPI(title="LORE API", description="API for vessels data and covid 
 api_app.logger = logger
 
 app.mount("/api", api_app)
-app.mount("/", StaticFiles(directory="web_neighborhood", html=True), name="static")
+app.mount("/", StaticFiles(directory="cvd_vue/dist", html=True), name="static")
 
 app.add_middleware(CORSMiddleware,
                    allow_origins=["*"],

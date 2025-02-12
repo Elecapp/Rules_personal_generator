@@ -148,7 +148,7 @@ class GeneticVesselsGenerator(GeneticGenerator):
 
     def __init__(self, bbox: AbstractBBox, dataset: Dataset, encoder: EncDec, X_feat, classifiers: dict, prob_of_mutation: float, ocr=0.1):
         super().__init__(bbox, dataset, encoder, ocr,
-                         alpha1=0.5, alpha2=0.5, metric=neuclidean, ngen=100, mutpb=0.2, cxpb=0.5,
+                         alpha1=0.5, alpha2=0.5, metric=neuclidean, ngen=30, mutpb=0.2, cxpb=0.5,
                          tournsize=3, halloffame_ratio=0.1, random_seed=None
                          )
         self.vessels_generator = VesselsGenerator(bbox, dataset, encoder, X_feat, classifiers, prob_of_mutation, ocr)
