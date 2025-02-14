@@ -258,6 +258,7 @@ def compute_statistics_distance(res, model):
         generator = ProbabilitiesWeightBasedGenerator(bbox, data, encoder)
         rnd_generator = RandomGenerator(bbox, data, encoder)
         genetic_generator = GeneticGenerator(bbox,data,encoder)
+        gptcovid_generator = GPTCovidGenerator(bbox, data, encoder)
 
         print('Converting the input instance')
         ist_lbl = np.full(1, 'ist').reshape(-1, 1)
@@ -277,6 +278,13 @@ def compute_statistics_distance(res, model):
         genetic_lbl = np.full(len(genetic_np_mins), 'Genetic').reshape(-1, 1)
         genetic_neighb_z_lbl = np.concatenate([genetic_lbl, genetic_neighb_z, genetic_bbox_lbl], axis=1)
 
+        print('Computing distances of GPTCovid generator')
+        gptcovid_np_mins, gptcovid_neighb_z, gptcovid_bbox_lbl = measure_distances(
+            data, encoder, gptcovid_generator, x, 'GPTCovid', res, model
+        )
+        gptcovid_lbl = np.full(len(gptcovid_np_mins), 'GPTCovid').reshape(-1, 1)
+        gptcovid_neighb_z_lbl = np.concatenate([gptcovid_lbl, gptcovid_neighb_z, gptcovid_bbox_lbl], axis=1)
+
 
         print('Euclidean distances from the original data')
         rnd_np_mins, rnd_neighb_z, rnd_bbox_lbl = measure_distances(data, encoder, rnd_generator, x, 'Random', res, model )
@@ -289,33 +297,36 @@ def compute_statistics_distance(res, model):
         train_dataset = np.concatenate([trn_lbl, train_features, res.values[:, -1].reshape(-1,1) ], axis=1)
 
 
-        neighbs = np.concatenate([ist_neighb, rnd_neighb_z_lbl, cst_neighb_z_lbl,genetic_neighb_z_lbl, train_dataset], axis=0)
+        neighbs = np.concatenate([ist_neighb, rnd_neighb_z_lbl, cst_neighb_z_lbl,genetic_neighb_z_lbl,gptcovid_neighb_z_lbl, train_dataset], axis=0)
 
         #reducer = umap.UMAP(n_neighbors=300,  random_state=1, min_dist=0.3, metric='manhattan')
         reducer = TSNE(perplexity=50, metric='manhattan' )
-        proj_neighbs = reducer.fit_transform(neighbs[:, 1: 8])
+        proj_neighbs = reducer.fit_transform(neighbs[:, 1: 12])
 
-        time_offsets = model_scaler.inverse_transform(neighbs[:,8:10])
-        original_features = ordinal_encoder.inverse_transform(neighbs[:, 1:8])
-        time_interval = np.apply_along_axis(computed_dates_from_offsets, 1, time_offsets)
+        #time_offsets = model_scaler.inverse_transform(neighbs[:,8:10])
+        original_features = ordinal_encoder.inverse_transform(neighbs[:, 1:12])
+        #time_interval = np.apply_along_axis(computed_dates_from_offsets, 1, time_offsets)
 
-        neighbs = np.concatenate([neighbs, proj_neighbs, time_interval], axis=1)
+        #neighbs = np.concatenate([neighbs, proj_neighbs, time_interval], axis=1)
+        neighbs = np.concatenate([neighbs, proj_neighbs], axis=1)
 
-        neighbs[:, 8:10] = time_offsets
-        column_names = ['Instance_gen','Week5_Covid', 'Week4_Covid', 'Week3_Covid', 'Week5_Mobility','Week4_Mobility','Week3_Mobility','Week2_Mobility','Days_passed','Duration','Class_label','x','y','Start_Date','End_date']
+        #neighbs[:, 8:10] = time_offsets
+        column_names = ['Instance_gen','Week6_Covid','Week5_Covid','Week4_Covid','Week3_Covid','Week2_Covid','Week6_Mobility','Week5_Mobility','Week4_Mobility','Week3_Mobility','Week2_Mobility','Week1_Mobility','Days_passed','Class_label','x','y']
         df = pd.DataFrame(neighbs, columns=column_names)
         df.to_csv(f'datasets/new_neigh/selected_instances_{i}.csv', index=False)
 
         alt_df_dist_o = pd.DataFrame(cst_np_mins, columns=['Distance'])
         alt_df_dist_r = pd.DataFrame(rnd_np_mins, columns=['Distance'])
         alt_df_dist_g = pd.DataFrame(genetic_np_mins, columns=['Distance'])
+        alt_df_dist_gptcovid = pd.DataFrame(gptcovid_np_mins, columns=['Distance'])
         print(alt_df_dist_o.head(10))
         alt_df_dist_o['source'] = 'Custom'
         alt_df_dist_r['source'] = 'Random'
         alt_df_dist_g['source'] = 'Genetic'
-        domain_ = ['Random', 'Custom', 'Genetic']
-        range_ = ['#102ce0', '#fa7907','#027037']
-        boxplot_df = pd.concat([alt_df_dist_o, alt_df_dist_r, alt_df_dist_g], axis=0)
+        alt_df_dist_gptcovid['source'] = 'GPT'
+        domain_ = ['Random', 'Custom', 'Genetic','GPT']
+        range_ = ['#102ce0', '#fa7907','#027037','#FF5733']
+        boxplot_df = pd.concat([alt_df_dist_o, alt_df_dist_r, alt_df_dist_g,alt_df_dist_gptcovid], axis=0)
         box_plot = alt.Chart(boxplot_df).mark_boxplot().encode(
             alt.X("Distance:Q"),
             #scale=alt.Scale(zero=False,domain=[2.5,4.5])
@@ -328,10 +339,10 @@ def compute_statistics_distance(res, model):
         )
         box_plot.save(f'plot/instance_vs_neigh/boxplot_bay_{i}.pdf')
 
-def measure_distances(data, encoder, generator, x, label: str, res, model, neighb_size:int=1000):
+def measure_distances(data, encoder, generator, x, label: str, res, model, neighb_size:int=100):
     preprocessor = generator.bbox.bbox.named_steps.get('columntransformer')
     global_mins = []
-    for i in range(5):
+    for i in range(1):
         # project the instance x and create a neighborhood of given size
         neighb_ohe = generator.generate(encoder.encode(x.reshape(1, -1))[0], neighb_size, data.descriptor, encoder)
         # decode the neighborhood
@@ -438,15 +449,15 @@ def calculate_distance(X1: np.array, X2: np.array, y_1: np.array = None, y_2: np
 
 if __name__ == '__main__':
     res = load_data_from_csv()
-    #model_pkl_file = 'models/model.pkl'
-    #if os.path.exists(model_pkl_file):
-    #    model = joblib.load(model_pkl_file)
-    #else:
-    #    model = create_and_train_model(res)
-    #    joblib.dump(model, model_pkl_file)
+    model_pkl_file = 'models/model.pkl'
+    if os.path.exists(model_pkl_file):
+        model = joblib.load(model_pkl_file)
+    else:
+        model = create_and_train_model(res)
+        joblib.dump(model, model_pkl_file)
     model = create_and_train_model(res)
     new_lore(res, model)
-    #compute_statistics_distance(res, model)
+    compute_statistics_distance(res, model)
 
    #UMAPMapper()
 
