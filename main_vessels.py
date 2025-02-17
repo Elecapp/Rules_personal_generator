@@ -10,10 +10,8 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.preprocessing import OrdinalEncoder
 from sklearn.compose import make_column_selector as selector
 
-
 import umap
 import umap.umap_ as umap
-
 
 import matplotlib
 
@@ -304,39 +302,6 @@ def create_and_train_model(df):
     print('Model score: ', model.score(data_test, target_test))
     return model, data_train, target_train
 
-
-
-def visualize_neighborhoods(random_distance, custom_distance, genetic_distance, custom_genetic_distance, title='Neighborhood Boxplots'):
-
-    neighborhoods=[]
-    for data, label in zip([random_distance, custom_distance, genetic_distance, custom_genetic_distance],['Random', 'Custom', 'Genetic', 'Custom Genetic']):
-        df = pd.DataFrame(data)
-        df['Neighborhood'] = label
-        neighborhoods.append(df)
-
-        # Combine all data
-    combined_df = pd.concat(neighborhoods, ignore_index=True)
-    combined_df.rename(columns={0: 'Distance'}, inplace=True)
-
-
-
-
-    chart = alt.Chart(combined_df).mark_boxplot().encode(
-            x=alt.X('Distance:Q', title='Distance'),
-            y=alt.Y('Neighborhood:N'),
-            color=alt.Color('Neighborhood:N', legend=alt.Legend(title='Neighborhood'))
-        ).properties(
-            title=title,
-            width=600,
-            height=400
-        )
-    directory = "plot"
-    chart_path = os.path.join(directory, "chart.png")
-    alt.renderers.enable("browser")
-    #chart.save(chart_path, dpi=250)
-    return chart
-
-
 def neighborhood_type_to_generators(neighborhood_types:[str], bbox, ds, encoder, data_train, target_train):
     generators = []
     if 'random' in neighborhood_types:
@@ -361,14 +326,27 @@ def neighborhood_type_to_generators(neighborhood_types:[str], bbox, ds, encoder,
 
     return generators
 
-def generate_neighborhood(x, model, data, X_feat, y, num_instances=100, neighborhood_types=['train', 'random']):
+def generate_neighborhoods(x, model, data, X_feat, y, num_instances=100, neighborhood_types=['train', 'random']):
+    """
+    Generate neighborhoods for a given instance x and model. The generators are selected from the neighborhood_types.
+    Each label corresponds to one of the generators avaialble for this case study. See the function `neighborhood_type_to_generators`
+    for more details.
 
+    :param x: The instance for which the neighborhoods are generated
+    :param model: The model used for the prediction
+    :param data: The data used for the statistics of the training data. It is used to set up the generators metadata.
+    :param X_feat: The features of the data to be used as training set. This is used when the 'train' neighborhood is selected.
+    :param y: The target labels of the data to be used as training set. This is used when the 'train' neighborhood is selected.
+    :param num_instances: The number of instances to generate for each neighborhood generation
+    :param neighborhood_types: The types of neighborhoods to generate. The available types are: 'train', 'random', 'custom', 'genetic', 'custom_genetic', 'baseline'
+
+    :return: A list of tuples with the neighborhood type and the generated neighborhoods. The tuple is in the form (neighborhood_type, neighborhoods)
+    """
     # Check if the neighborhoods already exist
     ds = TabularDataset(data=data, class_name='class N',categorial_columns=['class N'])
     encoder = ColumnTransformerEnc(ds.descriptor)
     bbox = sklearn_classifier_bbox.sklearnBBox(model)
     result = ()
-
 
     if 'train' in neighborhood_types:
         result = result + (('train', X_feat.values),)
@@ -379,23 +357,27 @@ def generate_neighborhood(x, model, data, X_feat, y, num_instances=100, neighbor
         result = result + ((n, gen_neighb), )
     return result
 
-
-
 def compute_distance(X1, X2, metric:str='euclidean'):
     dists = pairwise_distances(X1, X2, metric=metric)
     dists = np.min(dists, axis=1)
     return dists
 
-def measure_distance(random_n, custom_n, genetic_n, custom_genetic_n, an_array):# an_array can be a point or X_feat
-    #an_array = an_array.reshape(1, -1)
-    random_distance = compute_distance(random_n, an_array)
-    custom_distance = compute_distance(custom_n, an_array)
-    genetic_distance = compute_distance(genetic_n, an_array)
-    custom_genetic_distance = compute_distance(custom_genetic_n, an_array)
+def measure_distance(neighborhoods, an_array):# an_array can be a point or X_feat
+    """
+    Measure the distance of 'an_array' to the neighborhoods. The neighborhoods are in the form of a list of tuples
+    where the first element is the neighborhood type and the second element is the neighborhood data.
 
-    return random_distance, custom_distance, genetic_distance, custom_genetic_distance
+    :param neighborhoods: The neighborhoods to measure the distance to
+    :param an_array: The array to measure the distance to the neighborhoods
 
+    :return: A list of tuples with the neighborhood type and the distances to the neighborhoods. The tuple is in the form (neighborhood_type, distances)
+    """
+    distances = []
+    for n, neigh in neighborhoods:
+        dists = compute_distance(neigh, an_array)
+        distances.append((n, dists))
 
+    return distances
 
 
 
@@ -436,79 +418,22 @@ def new_lore(data, bb):
         print('-----')
 
 
-def visualize_umap(X_train, *neigh_arrays, labels=None):
-
-    reducer = umap.UMAP(n_neighbors=100, min_dist=0.3, metric='manhattan', random_state=42)
-    # da cambiare i n_neigh per vedere il migliore
-    X_train_embedded = reducer.fit_transform(X_train) #only on the trainig data
-
-    transformed_arrays = [reducer.transform(array) for array in neigh_arrays]
-    #visualize the umap
-    plt.figure(figsize=(10, 8))
-    plt.scatter(
-        X_train_embedded[:, 0],
-        X_train_embedded[:, 1],
-        c='#4f4e4d',
-        label=labels[0] if labels else 'X_train',
-        alpha=0.2,
-    )
-
-    # Plot the other arrays with different colors
-    colors = ['#fc3503', '#fcca03', '#3f0cf5']  # Extend as needed
-    for i, array_embedded in enumerate(transformed_arrays):
-        label = labels[i + 1] if labels else f'Array {i + 1}'
-        plt.scatter(
-            array_embedded[:, 0],
-            array_embedded[:, 1],
-            c=colors[i % len(colors)],
-            label=label,
-            alpha=0.5,
-        )
-
-    # Add plot details
-    plt.title("UMAP Visualization")
-    plt.xlabel("UMAP Dimension 1")
-    plt.ylabel("UMAP Dimension 2")
-    plt.legend(loc='best')
-    plt.grid(True)
-
-    # Show plot
-    plt.show()
-
-def save_to_csv(data, filename):
-    df = pd.DataFrame(data)
-    df.to_csv(f'precomputed_csv/{filename}.csv')
-
-
 if __name__ == '__main__':
     res = load_data_from_csv()
     model, X_feat, y = create_and_train_model(res)
     print(model)
 
-    save_dir = "neighborhood_cache"
     instance = res.iloc[9, :-1].values  # Example instance
-    #file_path = os.path.join(save_dir, f"neighborhood_instance_{str(instance)}.pkl")
-    result_n = generate_neighborhood(instance, model, res, X_feat, y, num_instances=1000, neighborhood_types=['train', 'random', 'custom'])
+    result_n = generate_neighborhoods(instance, model, res, X_feat, y, num_instances=1000, neighborhood_types=['train', 'random', 'custom'])
 
 
     #new_lore(res, model)
     #instance = res.iloc[9, :-1].values
-    random_distance_inst, custom_distance_inst, genetic_distance_inst, custom_genetic_distance_inst = measure_distance(random_n, custom_n, genetic_n, custom_genetic_n, instance.reshape(1, -1))
+    distances_instance = measure_distance(result_n, instance.reshape(1, -1))
     #print(random_distance, custom_distance, genetic_distance)
 
-    random_distance_train, custom_distance_train, genetic_distance_train, custom_genetic_distance_train = measure_distance(random_n, custom_n, genetic_n, custom_genetic_n, X_feat.values)
-    visualize_neighborhoods(random_distance_train, custom_distance_train, genetic_distance_train, custom_genetic_distance_train, title='Distances from Trainset').show()
-
-    save_to_csv(X_feat,"X_feat")
-    save_to_csv(random_n, "random_n")
-    save_to_csv(custom_n,"custom_n")
-    save_to_csv(genetic_n,"genetic_n")
-    save_to_csv(custom_genetic_n,"custom_genetic_n")
-
+    distances_train = measure_distance(result_n, X_feat.values)
     #Example: extracting a column
-    chart = visualize_neighborhoods(random_distance_inst, custom_distance_inst, genetic_distance_inst, custom_genetic_distance_inst, title='Distances from Instance')
-    chart.show()
-    #visualize_umap(X_feat, random_n, custom_n, genetic_n, labels=["Train","random","custom","genetic"])
 
 
 

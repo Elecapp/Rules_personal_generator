@@ -21,7 +21,7 @@ from lore_sa.lore import Lore
 from lore_sa.neighgen import RandomGenerator, GeneticGenerator
 from lore_sa.surrogate import DecisionTreeSurrogate
 from covid_router import covid_rule_to_dict
-from main_vessels import create_and_train_model, load_data_from_csv, generate_neighborhood, GenerateDecisionTrees, \
+from main_vessels import create_and_train_model, load_data_from_csv, generate_neighborhoods, GenerateDecisionTrees, \
     VesselsGenerator, GeneticVesselsGenerator, neighborhood_type_to_generators
 
 from pydantic import BaseModel
@@ -227,8 +227,8 @@ async def compute_neighborhoods(neigh_request):
     input_instance = np.copy(instance_event)
     predicted_class = vessels_model.predict([instance_event])
     logger.info(f"Predicted class: {predicted_class}")
-    neighbs = generate_neighborhood(instance_event, vessels_model, df_vessels, vessels_data_train, vessels_target_train,
-                                    neigh_request.num_samples, neighborhood_types_str)
+    neighbs = generate_neighborhoods(instance_event, vessels_model, df_vessels, vessels_data_train, vessels_target_train,
+                                     neigh_request.num_samples, neighborhood_types_str)
     # create an empty data frame to aggregate the neighborhoods
     df_neighbs = pd.DataFrame([instance_event], columns=df_vessels.columns[:-1])
     df_neighbs['predicted_class'] = predicted_class
