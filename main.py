@@ -230,6 +230,53 @@ def create_and_train_model(result_df):
 
     return model
 
+def neighborhood_type_to_generators(neighborhood_type: [str], bbox: AbstractBBox, data: Dataset, encoder: EncDec, data_train, target_train):
+    generators = []
+    if 'random' in neighborhood_type:
+        generators.append(('random', RandomGenerator(bbox, data, encoder)))
+    if 'genetic' in neighborhood_type:
+        generators.append(('genetic', GeneticGenerator(bbox, data, encoder)))
+    if 'gpt' in neighborhood_type:
+        generators.append(('gpt', GPTCovidGenerator(bbox, data, encoder)))
+
+    return generators
+
+def generate_neighborhoods(x, model, data, X_feat, y, num_instances=100, neighborhood_type: [str] = ['random']):
+    ds = TabularDataset(data=data, class_name='Class_label')
+    encoder = ColumnTransformerEnc(ds.descriptor)
+    bbox = sklearn_classifier_bbox.sklearnBBox(model)
+    result = ()
+
+    if 'train' in neighborhood_type:
+        result = result + (('train', X_feat.values), )
+
+    generators = neighborhood_type_to_generators(neighborhood_type, bbox, ds, encoder, X_feat, y)
+    for (n, g) in generators:
+        gen_neigh = g.generate(x, num_instances, ds.descriptor, encoder)
+        result = result + ((n, gen_neigh), )
+
+    return result
+
+def generate_neighborhood_statistics(x, model, data, X_feat, y, num_instances=100, num_repetition= 10,
+                                     neighborhood_type: [str] = ['random'], an_array: np.array = None):
+    ds = TabularDataset(data=data, class_name='Class_label')
+    encoder = ColumnTransformerEnc(ds.descriptor)
+    bbox = sklearn_classifier_bbox.sklearnBBox(model)
+    result = ()
+    z = encoder.encode(x.reshape(1, -1))[0]
+
+    generators = neighborhood_type_to_generators(neighborhood_type, bbox, ds, encoder, X_feat, y)
+    for (n, g) in generators:
+        global_mins = []
+        for i in range(num_repetition):
+            gen_neigh_z = g.generate(z, num_instances, ds.descriptor, encoder)
+            gen_neigh = encoder.decode(gen_neigh_z)
+            dists = calculate_distance(gen_neigh, an_array)
+            global_mins.append(dists)
+
+        np_mean = np.mean(np.array(global_mins), axis=0)
+        result = result + ((n, np_mean), )
+
 
 def computed_dates_from_offsets(offs: np.array):
     base_date = datetime(2020, 2, 17)
@@ -237,7 +284,6 @@ def computed_dates_from_offsets(offs: np.array):
     ending_date = starting_date + timedelta(offs[1])
 
     return np.array([starting_date, ending_date])
-
 
 def compute_statistics_distance(res, model):
     bbox = sklearn_classifier_bbox.sklearnBBox(model)
@@ -443,21 +489,15 @@ def new_lore(res, model):
 
 def calculate_distance(X1: np.array, X2: np.array, y_1: np.array = None, y_2: np.array = None, metric:str='euclidean'):
     dists = pairwise_distances(X1, X2, metric=metric)
-
+    dists = np.min(dists, axis=1)
     return dists
 
 
 if __name__ == '__main__':
     res = load_data_from_csv()
-    model_pkl_file = 'models/model.pkl'
-    if os.path.exists(model_pkl_file):
-        model = joblib.load(model_pkl_file)
-    else:
-        model = create_and_train_model(res)
-        joblib.dump(model, model_pkl_file)
     model = create_and_train_model(res)
-    new_lore(res, model)
-    compute_statistics_distance(res, model)
+    # new_lore(res, model)
+    generate_neighborhood_statistics(res, model, res, res.loc[:, 'Week6_Covid':'Days_passed'], res['Class_label'], num_instances=100, num_repetition=10, neighborhood_type=['custom', 'genetic', 'gpt'])
 
    #UMAPMapper()
 

@@ -357,6 +357,29 @@ def generate_neighborhoods(x, model, data, X_feat, y, num_instances=100, neighbo
         result = result + ((n, gen_neighb), )
     return result
 
+def generate_neighborhood_statistics(x, model, data, X_feat, y, num_instances=100,
+                                     num_repeation=10, neighborhood_types=['train', 'random'], an_array=None):
+
+    ds = TabularDataset(data=data, class_name='class N',categorial_columns=['class N'])
+    encoder = ColumnTransformerEnc(ds.descriptor)
+    bbox = sklearn_classifier_bbox.sklearnBBox(model)
+    result = ()
+
+    generators = neighborhood_type_to_generators(neighborhood_types, bbox, ds, encoder, X_feat, y)
+    for (n, g) in generators:
+        global_mins = []
+        for i in range(num_repeation):
+            if i % 2 == 0:
+                print(f"Repetition {i}")
+            gen_neighb = g.generate(x, num_instances, ds.descriptor, encoder)
+            dists = compute_distance(gen_neighb, an_array)
+            global_mins.append(dists)
+
+        np_mean = np.mean(np.array(global_mins), axis=0)
+        result = result + ((n, np_mean), )
+
+
+
 def compute_distance(X1, X2, metric:str='euclidean'):
     dists = pairwise_distances(X1, X2, metric=metric)
     dists = np.min(dists, axis=1)
@@ -434,6 +457,8 @@ if __name__ == '__main__':
 
     distances_train = measure_distance(result_n, X_feat.values)
     #Example: extracting a column
+
+    generate_neighborhood_statistics(instance, model, res, X_feat, y, num_instances=1000, num_repeation=10, neighborhood_types=['custom'], an_array=X_feat.values)
 
 
 
