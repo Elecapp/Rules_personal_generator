@@ -501,6 +501,9 @@ if __name__ == '__main__':
     # new_lore(res, model)
     x = res.iloc[45, :-1].values
     dists = generate_neighborhood_statistics(x, model, res, res.loc[:, 'Week6_Covid':'Days_passed'], res['Class_label'], num_instances=100, num_repetition=10, neighborhood_type=['custom', 'genetic', 'gpt'], an_array=res.iloc[:, :-1].values)
+    df =pd.DataFrame([], columns=['Neighborhood', 'Distance'])
+    for (n, d) in dists:
+        df = pd.concat([df, pd.DataFrame({'Neighborhood': [n] * len(d), 'Distance': d})], axis=0)
     print('cose')
 
    #UMAPMapper()
