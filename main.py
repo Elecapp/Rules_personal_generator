@@ -264,18 +264,20 @@ def generate_neighborhood_statistics(x, model, data, X_feat, y, num_instances=10
     bbox = sklearn_classifier_bbox.sklearnBBox(model)
     result = ()
     z = encoder.encode(x.reshape(1, -1))[0]
+    an_array_z = encoder.encode(an_array)
 
     generators = neighborhood_type_to_generators(neighborhood_type, bbox, ds, encoder, X_feat, y)
     for (n, g) in generators:
         global_mins = []
         for i in range(num_repetition):
             gen_neigh_z = g.generate(z, num_instances, ds.descriptor, encoder)
-            gen_neigh = encoder.decode(gen_neigh_z)
-            dists = calculate_distance(gen_neigh, an_array)
-            global_mins.append(dists)
+            dists = calculate_distance(gen_neigh_z, an_array_z)
+            global_mins.append(dists[0:num_instances])
 
         np_mean = np.mean(np.array(global_mins), axis=0)
         result = result + ((n, np_mean), )
+
+    return result
 
 
 def computed_dates_from_offsets(offs: np.array):
@@ -497,7 +499,9 @@ if __name__ == '__main__':
     res = load_data_from_csv()
     model = create_and_train_model(res)
     # new_lore(res, model)
-    generate_neighborhood_statistics(res, model, res, res.loc[:, 'Week6_Covid':'Days_passed'], res['Class_label'], num_instances=100, num_repetition=10, neighborhood_type=['custom', 'genetic', 'gpt'])
+    x = res.iloc[45, :-1].values
+    dists = generate_neighborhood_statistics(x, model, res, res.loc[:, 'Week6_Covid':'Days_passed'], res['Class_label'], num_instances=100, num_repetition=10, neighborhood_type=['custom', 'genetic', 'gpt'], an_array=res.iloc[:, :-1].values)
+    print('cose')
 
    #UMAPMapper()
 
