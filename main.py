@@ -495,10 +495,9 @@ def plot_boxplot(df):
     #domain_ = ['Random', 'Custom', 'Genetic', 'GPT']
     #range_ = ['#102ce0', '#fa7907', '#027037', '#FF5733']
     box_plot = alt.Chart(df).mark_boxplot().encode(
-        alt.X("Distance:Q"),
-        # scale=alt.Scale(zero=False,domain=[2.5,4.5])
-        alt.Y("Neighborhood:N"),
-        alt.Color("Neighborhood:N") #scale=alt.Scale(domain=domain_, range=range_)
+        x=alt.X("Distance:Q").scale(zero=False, domain=[2.5, 4.9]),
+        y=alt.Y("Neighborhood:N"),
+        color=alt.Color("Neighborhood:N") #scale=alt.Scale(domain=domain_, range=range_)
     ).properties(
         height=150,
         width=400,
