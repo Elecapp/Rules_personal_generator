@@ -34,7 +34,7 @@ export default {
       ],
       relevant_instances: [
         {
-          title: 'Class 1 - Speeds Varied from 14.35 to 18.95 kts, Initial Curvature of 1 Unit, and Distances Closest to Port Ranging from 0.27 to 34.35 nautical miles.',
+          title: '[Class 1] Vessel with speed ranging from 14.35 to 18.95 knots, a slight initial curvature (1.00) and trend angle deviation (0.27), navigating between 22.19 and 34.35 nautical miles from port.',
           values: {
             SpeedMinimum: 14.35,
             SpeedQ1: 15.46,
@@ -48,7 +48,7 @@ export default {
           },
         },
         {
-          title: 'Class 3 - Speeds Ranged from 3.27 to 4.82 kts, Initial Path Curvature of 1 Unit, and Minimum Distances to Port were 0.08 to 0.17 nautical miles',
+          title: '[Class 3] Vessel with speed ranging from 3.27 to 4.82 knots, a slight initial curvature (1.00) and minimal trend angle deviation (0.08), navigating between 48.87 and 63.35 nautical miles from port.',
           values: {
             SpeedMinimum: 3.27,
             SpeedQ1: 4.58,
@@ -62,7 +62,7 @@ export default {
           },
         },
         {
-          title: 'Class 3 - Record Exhibits Speeds from 0.91 to 2.78 kts, Initial Path Curvature of 2.45 Units, and Distances Closest to Port at 5.07 to 27.55 nautical miles.',
+          title: '[Class 3] Vessel with speed ranging from 0.91 to 2.78 knots, moderate initial curvature (2.45) and trend angle deviation (-0.01), navigating between 20.04 and 27.55 nautical miles from port.',
           values: {
             SpeedMinimum: 0.91,
             SpeedQ1: 2.37,
@@ -75,7 +75,64 @@ export default {
             MinDistPort: 20.04,
           },
         },
-      ],
+        {
+          title: '[Class 2] Vessel with speed ranging from 1.01 to 15.65 knots, slight initial curvature (1.18) and trend angle deviation (0.13), navigating between 14.29 and 27.42 nautical miles from port.',
+          values: {
+            SpeedMinimum: 1.01,
+            SpeedQ1: 6.1,
+            SpeedMedian: 15.34,
+            SpeedQ3: 15.65,
+            DistanceStartShapeCurvature: 1.18,
+            DistanceStartTrendAngle: 0.13,
+            DistStartTrendDevAmplitude: 12.48,
+            MaxDistPort: 27.42,
+            MinDistPort: 14.29,
+          },
+        },
+        {
+          title: '[Class 4] Vessel with speed ranging from 0.01 to 15.52 knots, slight initial curvature (1.15) and trend angle deviation (0.11), navigating between 0.31 and 15.56 nautical miles from port.',
+          values: {
+            SpeedMinimum: 0.01,
+            SpeedQ1: 13.62,
+            SpeedMedian: 14.85,
+            SpeedQ3: 15.52,
+            DistanceStartShapeCurvature: 1.15,
+            DistanceStartTrendAngle: 0.11,
+            DistStartTrendDevAmplitude: 11.17,
+            MaxDistPort: 15.56,
+            MinDistPort: 0.31,
+          },
+        },
+        {
+          title: '[Class 5] Vessel with speed ranging from 0.01 to 0.94 knots, moderate initial curvature (1.46) and trend angle deviation (0.05), navigating between 0.17 and 5.87 nautical miles from port.',
+          values: {
+            SpeedMinimum: 0.01,
+            SpeedQ1: 0.24,
+            SpeedMedian: 0.47,
+            SpeedQ3: 0.94,
+            DistanceStartShapeCurvature: 1.46,
+            DistanceStartTrendAngle: 0.05,
+            DistStartTrendDevAmplitude: 4.43,
+            MaxDistPort: 5.87,
+            MinDistPort: 0.17,
+          },
+        },
+        {
+          title: '[Class 6] Vessel with speed ranging from 0.00 to 0.14 knots, high initial curvature (19.18) and no trend angle deviation (0.00), navigating between 0.22 and 0.23 nautical miles from port.',
+          values: {
+            SpeedMinimum: 0,
+            SpeedQ1: 0.07,
+            SpeedMedian: 0.1,
+            SpeedQ3: 0.14,
+            DistanceStartShapeCurvature: 19.18,
+            DistanceStartTrendAngle: 0,
+            DistStartTrendDevAmplitude: 0.01,
+            MaxDistPort: 0.23,
+            MinDistPort: 0.22,
+          },
+        },
+      ]
+      ,
     };
   },
   methods: {
