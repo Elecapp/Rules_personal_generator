@@ -13,7 +13,7 @@
     </b-row>
     <b-row>
       <b-col>
-        <VesselsForm @sendRequest="sendRequest"/>
+        <VesselsForm @sendRequest="sendRequest" :waiting-for-response="isLoading"/>
       </b-col>
     </b-row>
     <div id="viz"></div>
@@ -30,15 +30,15 @@ export default {
   },
   data() {
     return {
-
+      isLoading: false,
       contentValue: '',
       spec: {},
     };
   },
   methods: {
     sendRequest(strPayload) {
-      console.log('payload', strPayload)
       const strValue = strPayload;
+      this.isLoading = true;
 
       fetch('/api/vessels/neighborhood/visualization', {
         method: 'POST',
@@ -53,9 +53,11 @@ export default {
           // Render the visualization
           // embed('#viz', data, { mode: 'vega-lite' });
           vegaEmbed('#viz', data, { mode: 'vega-lite' });
+          this.isLoading = false;
         },
         ).catch((error) => {
           alert('There was an error processing your request');
+          this.isLoading = false;
         });
     },
   },

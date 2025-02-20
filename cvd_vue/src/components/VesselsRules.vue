@@ -14,7 +14,7 @@
     </b-row>
     <b-row>
       <b-col>
-        <VesselsForm @sendRequest="sendRequest"/>
+        <VesselsForm @sendRequest="sendRequest" :waiting-for-response="isLoading"/>
       </b-col>
     </b-row>
     <b-row>
@@ -54,7 +54,7 @@ export default {
   },
   data() {
     return {
-
+      isLoading: false,
       contentValue: '',
       spec: {
         instance: [
@@ -77,8 +77,8 @@ export default {
   },
   methods: {
     sendRequest(strPayload) {
-      console.log('payload', strPayload);
       const strValue = strPayload;
+      this.isLoading = true;
 
       fetch('/api/vessels/explain', {
         method: 'POST',
@@ -92,9 +92,11 @@ export default {
           this.spec = data;
           // Render the visualization
           // embed('#viz', data, { mode: 'vega-lite' });
+          this.isLoading = false;
         },
         ).catch((error) => {
           alert('There was an error processing your request');
+          this.isLoading = false;
         });
     },
   },

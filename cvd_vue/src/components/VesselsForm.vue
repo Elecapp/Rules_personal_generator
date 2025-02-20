@@ -1,6 +1,12 @@
 <script>
 export default {
   name: 'VesselsForm',
+  props: {
+    waitingForResponse: {
+      type: Boolean,
+      defauls: false,
+    },
+  },
   data() {
     return {
       form: {
@@ -25,6 +31,50 @@ export default {
         { text: 'Genetic', value: 'genetic' },
         { text: 'Custom genetic', value: 'custom_genetic' },
         { text: 'Baseline Train', value: 'baseline' },
+      ],
+      relevant_instances: [
+        {
+          title: 'Class 1 - Speeds Varied from 14.35 to 18.95 kts, Initial Curvature of 1 Unit, and Distances Closest to Port Ranging from 0.27 to 34.35 nautical miles.',
+          values: {
+            SpeedMinimum: 14.35,
+            SpeedQ1: 15.46,
+            SpeedMedian: 16.5,
+            SpeedQ3: 18.95,
+            DistanceStartShapeCurvature: 1,
+            DistanceStartTrendAngle: 0.27,
+            DistStartTrendDevAmplitude: 1.71,
+            MaxDistPort: 34.35,
+            MinDistPort: 22.19,
+          },
+        },
+        {
+          title: 'Class 3 - Speeds Ranged from 3.27 to 4.82 kts, Initial Path Curvature of 1 Unit, and Minimum Distances to Port were 0.08 to 0.17 nautical miles',
+          values: {
+            SpeedMinimum: 3.27,
+            SpeedQ1: 4.58,
+            SpeedMedian: 4.68,
+            SpeedQ3: 4.82,
+            DistanceStartShapeCurvature: 1,
+            DistanceStartTrendAngle: 0.08,
+            DistStartTrendDevAmplitude: 0.17,
+            MaxDistPort: 63.35,
+            MinDistPort: 48.87,
+          },
+        },
+        {
+          title: 'Class 3 - Record Exhibits Speeds from 0.91 to 2.78 kts, Initial Path Curvature of 2.45 Units, and Distances Closest to Port at 5.07 to 27.55 nautical miles.',
+          values: {
+            SpeedMinimum: 0.91,
+            SpeedQ1: 2.37,
+            SpeedMedian: 2.49,
+            SpeedQ3: 2.78,
+            DistanceStartShapeCurvature: 2.45,
+            DistanceStartTrendAngle: -0.01,
+            DistStartTrendDevAmplitude: 5.07,
+            MaxDistPort: 27.55,
+            MinDistPort: 20.04,
+          },
+        },
       ],
     };
   },
@@ -57,6 +107,16 @@ export default {
 
 <template>
   <b-form>
+    <b-row>
+      <b-col>
+        <b-form-group id="relevant-instances-g" label-for="relevant-instances-i"
+        description="Select one of the relevant instances to fill the form">
+          <label for="relevant-instances-i">Relevant instances:</label>
+          <b-form-select id="relevant-instances-i" v-model="form" required
+          :options="relevant_instances.map(v => ({ text: v.title, value: v.values }))"/>
+        </b-form-group>
+      </b-col>
+    </b-row>
     <b-row>
       <b-col cols="6">
         <b-form-group id="SpeedMinimum-g" label-for="SpeedMinimum-i"
@@ -165,7 +225,10 @@ export default {
     </b-row>
     <b-row class="mb-4">
       <b-col>
-        <b-button @click="sendRequest()" variant="primary">Submit</b-button>
+        <b-button @click="sendRequest()" variant="primary">
+          <b-spinner small v-if="waitingForResponse">Loading...</b-spinner>
+          <span v-else>Submit</span>
+        </b-button>
       </b-col>
     </b-row>
   </b-form>
