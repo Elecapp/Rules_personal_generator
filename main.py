@@ -234,6 +234,8 @@ def neighborhood_type_to_generators(neighborhood_type: [str], bbox: AbstractBBox
     generators = []
     if 'random' in neighborhood_type:
         generators.append(('random', RandomGenerator(bbox, data, encoder)))
+    if 'custom' in neighborhood_type:
+            generators.append(('custom', ProbabilitiesWeightBasedGenerator(bbox, data, encoder)))
     if 'genetic' in neighborhood_type:
         generators.append(('genetic', GeneticGenerator(bbox, data, encoder)))
     if 'gpt' in neighborhood_type:
@@ -279,7 +281,7 @@ def generate_neighborhood_statistics(x, model, data, X_feat, y, num_instances=10
 
     return result
 
-
+# not needed with new model?
 def computed_dates_from_offsets(offs: np.array):
     base_date = datetime(2020, 2, 17)
     starting_date = base_date + timedelta(offs[0])
@@ -359,6 +361,7 @@ def compute_statistics_distance(res, model):
         neighbs = np.concatenate([neighbs, proj_neighbs], axis=1)
 
         #neighbs[:, 8:10] = time_offsets
+        '''
         column_names = ['Instance_gen','Week6_Covid','Week5_Covid','Week4_Covid','Week3_Covid','Week2_Covid','Week6_Mobility','Week5_Mobility','Week4_Mobility','Week3_Mobility','Week2_Mobility','Week1_Mobility','Days_passed','Class_label','x','y']
         df = pd.DataFrame(neighbs, columns=column_names)
         df.to_csv(f'datasets/new_neigh/selected_instances_{i}.csv', index=False)
@@ -386,11 +389,11 @@ def compute_statistics_distance(res, model):
             title='Euclidean distances of the neighbourhoods from the instance'
         )
         box_plot.save(f'plot/instance_vs_neigh/boxplot_bay_{i}.pdf')
-
-def measure_distances(data, encoder, generator, x, label: str, res, model, neighb_size:int=100):
+'''
+def measure_distances(data, encoder, generator, x, label: str, res, model, neighb_size:int=1000):
     preprocessor = generator.bbox.bbox.named_steps.get('columntransformer')
     global_mins = []
-    for i in range(1):
+    for i in range(10):
         # project the instance x and create a neighborhood of given size
         neighb_ohe = generator.generate(encoder.encode(x.reshape(1, -1))[0], neighb_size, data.descriptor, encoder)
         # decode the neighborhood
@@ -488,6 +491,20 @@ def new_lore(res, model):
     #    if len(rl['counterfactuals']) > 0:
     #        print(i)
 
+def plot_boxplot(df):
+    #domain_ = ['Random', 'Custom', 'Genetic', 'GPT']
+    #range_ = ['#102ce0', '#fa7907', '#027037', '#FF5733']
+    box_plot = alt.Chart(df).mark_boxplot().encode(
+        x=alt.X("Distance:Q").scale(zero=False, domain=[2.5, 4.9]),
+        y=alt.Y("Neighborhood:N"),
+        color=alt.Color("Neighborhood:N") #scale=alt.Scale(domain=domain_, range=range_)
+    ).properties(
+        height=150,
+        width=400,
+        title='Euclidean distances of the neighbourhoods from the instance'
+    )
+    box_plot.save('plot/instance_vs_neigh/boxplot_bay_instance.pdf')
+
 
 def calculate_distance(X1: np.array, X2: np.array, y_1: np.array = None, y_2: np.array = None, metric:str='euclidean'):
     dists = pairwise_distances(X1, X2, metric=metric)
@@ -500,12 +517,15 @@ if __name__ == '__main__':
     model = create_and_train_model(res)
     # new_lore(res, model)
     x = res.iloc[45, :-1].values
-    dists = generate_neighborhood_statistics(x, model, res, res.loc[:, 'Week6_Covid':'Days_passed'], res['Class_label'], num_instances=100, num_repetition=10, neighborhood_type=['custom', 'genetic', 'gpt'], an_array=res.iloc[:, :-1].values)
+    dists = generate_neighborhood_statistics(x, model, res, res.loc[:, 'Week6_Covid':'Days_passed'], res['Class_label'], num_instances=1000, num_repetition=100, neighborhood_type=['custom','random', 'genetic', 'gpt'], an_array=res.iloc[:, :-1].values)
     df =pd.DataFrame([], columns=['Neighborhood', 'Distance'])
     for (n, d) in dists:
         df = pd.concat([df, pd.DataFrame({'Neighborhood': [n] * len(d), 'Distance': d})], axis=0)
-    print('cose')
+    plot_boxplot(df)
+
+
 
    #UMAPMapper()
+
 
 

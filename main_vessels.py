@@ -373,10 +373,11 @@ def generate_neighborhood_statistics(x, model, data, X_feat, y, num_instances=10
                 print(f"Repetition {i}")
             gen_neighb = g.generate(x, num_instances, ds.descriptor, encoder)
             dists = compute_distance(gen_neighb, an_array)
-            global_mins.append(dists)
+            global_mins.append(dists[0:num_instances])
 
         np_mean = np.mean(np.array(global_mins), axis=0)
         result = result + ((n, np_mean), )
+    return result
 
 
 
@@ -440,6 +441,20 @@ def new_lore(data, bb):
         print(cr)
         print('-----')
 
+def plot_boxplot(df):
+    #domain_ = ['Random', 'Custom', 'Genetic', 'GPT']
+    #range_ = ['#102ce0', '#fa7907', '#027037', '#FF5733']
+    box_plot = alt.Chart(df).mark_boxplot().encode(
+        x=alt.X("Distance:Q"),
+        y=alt.Y("Neighborhood:N"),
+        color=alt.Color("Neighborhood:N") #scale=alt.Scale(domain=domain_, range=range_)
+    ).properties(
+        height=150,
+        width=400,
+        title='Euclidean distances of the neighbourhoods from the instance'
+    )
+    box_plot.save('plot/instance_vs_neigh/boxplot_vessel_instance.pdf')
+
 
 if __name__ == '__main__':
     res = load_data_from_csv()
@@ -447,18 +462,23 @@ if __name__ == '__main__':
     print(model)
 
     instance = res.iloc[9, :-1].values  # Example instance
-    result_n = generate_neighborhoods(instance, model, res, X_feat, y, num_instances=1000, neighborhood_types=['train', 'random', 'custom'])
+    result_n = generate_neighborhoods(instance, model, res, X_feat, y, num_instances=100, neighborhood_types=['train', 'random',])
 
 
     #new_lore(res, model)
     #instance = res.iloc[9, :-1].values
-    distances_instance = measure_distance(result_n, instance.reshape(1, -1))
+    #distances_instance = measure_distance(result_n, instance.reshape(1, -1))
     #print(random_distance, custom_distance, genetic_distance)
 
-    distances_train = measure_distance(result_n, X_feat.values)
+    #distances_train = measure_distance(result_n, X_feat.values)
     #Example: extracting a column
 
-    generate_neighborhood_statistics(instance, model, res, X_feat, y, num_instances=1000, num_repeation=10, neighborhood_types=['custom'], an_array=X_feat.values)
+    dists = generate_neighborhood_statistics(instance, model, res, res.loc[:,['SpeedMinimum', 'SpeedQ1', 'SpeedMedian', 'SpeedQ3', 'DistanceStartShapeCurvature',
+                'DistStartTrendAngle', 'DistStartTrendDevAmplitude', 'MaxDistPort', 'MinDistPort']], res['class N'], num_instances=1000, num_repeation=100, neighborhood_types=['custom','genetic','custom_genetic','baseline'], an_array=X_feat.values)
+    df = pd.DataFrame([], columns=['Neighborhood', 'Distance'])
+    for (n, d) in dists:
+        df = pd.concat([df, pd.DataFrame({'Neighborhood': [n] * len(d), 'Distance': d})], axis=0)
+    plot_boxplot(df)
 
 
 
