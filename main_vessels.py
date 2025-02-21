@@ -367,16 +367,21 @@ def generate_neighborhood_statistics(x, model, data, X_feat, y, num_instances=10
 
     generators = neighborhood_type_to_generators(neighborhood_types, bbox, ds, encoder, X_feat, y)
     for (n, g) in generators:
-        global_mins = []
+        global_mins_training = []
+        global_mins_instance = []
         for i in range(num_repeation):
             if i % 2 == 0:
                 print(f"Repetition {i}")
             gen_neighb = g.generate(x, num_instances, ds.descriptor, encoder)
-            dists = compute_distance(gen_neighb, an_array)
-            global_mins.append(dists[0:num_instances])
+            dists_training = compute_distance(gen_neighb, an_array)
+            dists_instance = compute_distance(gen_neighb, x.reshape(1, -1))
+            global_mins_training.append(dists_training[0:num_instances])
+            global_mins_instance.append(dists_instance[0])
 
-        np_mean = np.mean(np.array(global_mins), axis=0)
-        result = result + ((n, np_mean), )
+        np_mean_training = np.mean(np.array(global_mins_training), axis=0)
+        np_mean_instance = np.mean(np.array(global_mins_instance), axis=0)
+        result = result + ((n, 'training', np_mean_training), )
+        result = result + ((n, 'instance', np_mean_instance), )
     return result
 
 
@@ -473,11 +478,16 @@ if __name__ == '__main__':
     #distances_train = measure_distance(result_n, X_feat.values)
     #Example: extracting a column
 
-    dists = generate_neighborhood_statistics(instance, model, res, res.loc[:,['SpeedMinimum', 'SpeedQ1', 'SpeedMedian', 'SpeedQ3', 'DistanceStartShapeCurvature',
-                'DistStartTrendAngle', 'DistStartTrendDevAmplitude', 'MaxDistPort', 'MinDistPort']], res['class N'], num_instances=1000, num_repeation=100, neighborhood_types=['custom','genetic','custom_genetic','baseline'], an_array=X_feat.values)
-    df = pd.DataFrame([], columns=['Neighborhood', 'Distance'])
-    for (n, d) in dists:
-        df = pd.concat([df, pd.DataFrame({'Neighborhood': [n] * len(d), 'Distance': d})], axis=0)
+    if not os.path.exists('vessels_neighborhoods_10rep.csv'):
+        dists = generate_neighborhood_statistics(instance, model, res, res.loc[:,['SpeedMinimum', 'SpeedQ1', 'SpeedMedian', 'SpeedQ3', 'DistanceStartShapeCurvature',
+                    'DistStartTrendAngle', 'DistStartTrendDevAmplitude', 'MaxDistPort', 'MinDistPort']], res['class N'], num_instances=500, num_repeation=2, neighborhood_types=['custom','genetic','custom_genetic','baseline'], an_array=X_feat.values)
+        df = pd.DataFrame([], columns=['Neighborhood', 'Distance'])
+        for (n, t, d) in dists:
+            df = pd.concat([df, pd.DataFrame({'Neighborhood': [n] * len(d), 'Reference': [t] * len(d),'Distance': d})], axis=0)
+        df.to_csv('vessels_neighborhoods_10rep.csv', index=False)
+    else:
+        df = pd.read_csv('vessels_neighborhoods_10rep.csv')
+
     plot_boxplot(df)
 
 

@@ -270,14 +270,19 @@ def generate_neighborhood_statistics(x, model, data, X_feat, y, num_instances=10
 
     generators = neighborhood_type_to_generators(neighborhood_type, bbox, ds, encoder, X_feat, y)
     for (n, g) in generators:
-        global_mins = []
+        global_mins_training = []
+        global_mins_instance = []
         for i in range(num_repetition):
             gen_neigh_z = g.generate(z, num_instances, ds.descriptor, encoder)
-            dists = calculate_distance(gen_neigh_z, an_array_z)
-            global_mins.append(dists[0:num_instances])
+            dists_training = calculate_distance(gen_neigh_z, an_array_z)
+            dists_instance = calculate_distance(gen_neigh_z, z.reshape(1, -1))
+            global_mins_training.append(dists[0:num_instances])
+            global_mins_instance.append(dists[num_instances])
 
-        np_mean = np.mean(np.array(global_mins), axis=0)
-        result = result + ((n, np_mean), )
+        np_mean_training = np.mean(np.array(global_mins_training), axis=0)
+        np_mean_instance = np.mean(np.array(global_mins_instance), axis=0)
+        result = result + ((n, 'training', np_mean_training), )
+        result = result + ((n, 'instance', np_mean_instance), )
 
     return result
 
@@ -517,10 +522,15 @@ if __name__ == '__main__':
     model = create_and_train_model(res)
     # new_lore(res, model)
     x = res.iloc[45, :-1].values
-    dists = generate_neighborhood_statistics(x, model, res, res.loc[:, 'Week6_Covid':'Days_passed'], res['Class_label'], num_instances=1000, num_repetition=100, neighborhood_type=['custom','random', 'genetic', 'gpt'], an_array=res.iloc[:, :-1].values)
-    df =pd.DataFrame([], columns=['Neighborhood', 'Distance'])
-    for (n, d) in dists:
-        df = pd.concat([df, pd.DataFrame({'Neighborhood': [n] * len(d), 'Distance': d})], axis=0)
+    if not os.path.exists('covid_neighborhoods_10rep.csv'):
+        dists = generate_neighborhood_statistics(x, model, res, res.loc[:, 'Week6_Covid':'Days_passed'], res['Class_label'], num_instances=1000, num_repetition=100, neighborhood_type=['custom','random', 'genetic', 'gpt'], an_array=res.iloc[:, :-1].values)
+        df =pd.DataFrame([], columns=['Neighborhood', 'Distance'])
+        for (n, d) in dists:
+            df = pd.concat([df, pd.DataFrame({'Neighborhood': [n] * len(d), 'Distance': d})], axis=0)
+        df.to_csv('covid_neighborhoods_10rep.csv', index=False)
+    else:
+        df = pd.read_csv('covid_neighborhoods_10rep.csv')
+
     plot_boxplot(df)
 
 
