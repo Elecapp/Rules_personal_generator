@@ -498,9 +498,24 @@ def new_lore(data, bb):
         print(cr)
         print('-----')
 
-def plot_boxplot(df, basefilename):
+def plot_boxplot(df, df_times, basefilename):
     #domain_ = ['Random', 'Custom', 'Genetic', 'GPT']
     #range_ = ['#102ce0', '#fa7907', '#027037', '#FF5733']
+
+    text_times = alt.Chart(df_times).mark_text(
+        align='left',
+        baseline='middle',
+        dx=7
+    ).encode(
+        text='mean(Time):Q',
+        y=alt.Y('Neighborhood:N'),
+    ).configure_view(
+        stroke=None
+    )
+    box_plot_times = text_times
+
+    box_plot_times.save(f'plot/instance_vs_neigh/{basefilename}_times.pdf')
+
     box_plot_training = alt.Chart(df[df['Reference']=='training']).mark_boxplot().encode(
         x=alt.X("Distance:Q"),
         y=alt.Y("Neighborhood:N"),
@@ -572,7 +587,7 @@ if __name__ == '__main__':
         df = pd.read_csv(csv)
         df_times = pd.read_csv(f'{basefilename}_times.csv')
 
-    plot_boxplot(df, basefilename)
+    plot_boxplot(df, df_times, basefilename)
 
 
 

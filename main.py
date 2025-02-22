@@ -1,4 +1,5 @@
 import os
+import time
 
 import joblib
 import pandas as pd
@@ -267,6 +268,7 @@ def generate_neighborhood_statistics(x, model, data, X_feat, y, num_instances=10
     bbox = sklearn_classifier_bbox.sklearnBBox(model)
     transformer = model.named_steps['columntransformer']
     result = ()
+    compl_times = ()
     z = encoder.encode(x.reshape(1, -1))[0]
     zt = transformer.transform(x.reshape(1, -1))
     an_array_z = encoder.encode(an_array)
@@ -277,23 +279,29 @@ def generate_neighborhood_statistics(x, model, data, X_feat, y, num_instances=10
         print(f'Generator: {n}')
         global_mins_training = []
         global_mins_instance = []
+        global_times = []
         for i in range(num_repetition):
             if i % 2 == 0:
                 print(f"Repetition {i}")
+            start = time.time()
             gen_neigh_z = g.generate(z, num_instances, ds.descriptor, encoder)
+            gen_neigh_z = gen_neigh_z[:num_instances]
+            end = time.time()
             gen_neigh = encoder.decode(gen_neigh_z)
             gen_neigh_zt = transformer.transform(gen_neigh)
             dists_training = calculate_distance(gen_neigh_zt, an_array_zt)
             dists_instance = calculate_distance(gen_neigh_zt, zt)
-            global_mins_training.append(dists_training[0:num_instances])
-            global_mins_instance.append(dists_instance[0:num_instances])
+            global_mins_training.append(dists_training)
+            global_mins_instance.append(dists_instance)
+            global_times.append(end - start)
 
         np_mean_training = np.mean(np.array(global_mins_training), axis=0)
         np_mean_instance = np.mean(np.array(global_mins_instance), axis=0)
         result = result + ((n, 'training', np_mean_training), )
         result = result + ((n, 'instance', np_mean_instance), )
+        compl_times = compl_times + ((n, global_times), )
 
-    return result
+    return result, compl_times
 
 # not needed with new model?
 def computed_dates_from_offsets(offs: np.array):
@@ -505,9 +513,32 @@ def new_lore(res, model):
     #    if len(rl['counterfactuals']) > 0:
     #        print(i)
 
-def plot_boxplot(df, basefilename):
+def plot_boxplot(df, df_times, basefilename):
     #domain_ = ['Random', 'Custom', 'Genetic', 'GPT']
     #range_ = ['#102ce0', '#fa7907', '#027037', '#FF5733']
+    # points_times = alt.Chart(df_times).mark_boxplot().encode(
+    #     x=alt.X("mean(Time):Q"),
+    #     y=alt.Y("Neighborhood:N"),
+    #     color=alt.Color("Neighborhood:N") #scale=alt.Scale(domain=domain_, range=range_)
+    # ).properties(
+    #     height=150,
+    #     width=200,
+    #     title='Completion time'
+    # )
+    text_times = alt.Chart(df_times).mark_text(
+        align='left',
+        baseline='middle',
+        dx=7
+    ).encode(
+        text='mean(Time):Q',
+        y=alt.Y('Neighborhood:N'),
+    ).configure_view(
+        stroke=None
+    )
+    box_plot_times = text_times
+
+    box_plot_times.save(f'plot/instance_vs_neigh/{basefilename}_times.pdf')
+
     box_plot_training = alt.Chart(df[df['Reference']=='training']).mark_boxplot().encode(
         x=alt.X("Distance:Q"),
         y=alt.Y("Neighborhood:N"),
@@ -544,7 +575,7 @@ if __name__ == '__main__':
     id_istance = 45
     x = res.iloc[id_istance, :-1].values
 
-    num_repeation = 1
+    num_repeation = 5
     num_instances = 1000
     basefilename = f'covid_neighborhoods_x_{id_istance}_{num_instances}_{num_repeation}rep'
     neighboorhood_type = [
@@ -556,17 +587,22 @@ if __name__ == '__main__':
     ]
     csv = f'{basefilename}.csv'
     if not os.path.exists(csv):
-        dists = generate_neighborhood_statistics(x, model, res, res.loc[:, 'Week6_Covid':'Days_passed'], res['Class_label'],
+        dists, compl_times = generate_neighborhood_statistics(x, model, res, res.loc[:, 'Week6_Covid':'Days_passed'], res['Class_label'],
                                                  num_instances=num_instances, num_repetition=num_repeation,
                                                  neighborhood_type=neighboorhood_type, an_array=res.iloc[:, :-1].values)
         df =pd.DataFrame([], columns=['Neighborhood', 'Reference', 'Distance'])
+        df_times = pd.DataFrame([], columns=['Neighborhood', 'Time'])
         for (n, t, d) in dists:
             df = pd.concat([df, pd.DataFrame({'Neighborhood': [n] * len(d), 'Reference': [t] * len(d), 'Distance': d})], axis=0)
+        for (n, t) in compl_times:
+            df_times = pd.concat([df_times, pd.DataFrame({'Neighborhood': [n] * len(t), 'Time': t})], axis=0)
         df.to_csv(csv, index=False)
+        df_times.to_csv(f'{basefilename}_times.csv', index=False)
     else:
         df = pd.read_csv(csv)
+        df_times = pd.read_csv(f'{basefilename}_times.csv')
 
-    plot_boxplot(df, basefilename)
+    plot_boxplot(df, df_times, basefilename)
 
 
 
