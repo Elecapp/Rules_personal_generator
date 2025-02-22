@@ -35,7 +35,7 @@ from lore_sa.encoder_decoder import EncDec, ColumnTransformerEnc
 from lore_sa.util import neuclidean
 from lore_sa.lore import TabularRandomGeneratorLore, Lore
 
-from sklearn.metrics import pairwise_distances
+from sklearn.metrics import pairwise_distances, euclidean_distances
 
 import altair as alt
 alt.data_transformers.enable('default', max_rows=None)
@@ -179,7 +179,8 @@ class BaselineTrainingGenerator(NeighborhoodGenerator):
         self.df_train = df_train
 
     def generate(self, x, num_instances:int=10000, descriptor: dict=None, encoder=None, list=None):
-        distances = self.df_train.apply(lambda row: neuclidean(x, row), axis=1)
+        distances = pairwise_distances(self.df_train, x.reshape(1, -1), metric='euclidean')
+        # distances = self.df_train.apply(lambda row: euclidean_distances(x_, row), axis=1)
         df_neighb = self.df_train.copy()
         df_neighb['Distance'] = distances
         df_neighb.sort_values('Distance', inplace=True)
@@ -367,6 +368,7 @@ def generate_neighborhood_statistics(x, model, data, X_feat, y, num_instances=10
 
     generators = neighborhood_type_to_generators(neighborhood_types, bbox, ds, encoder, X_feat, y)
     for (n, g) in generators:
+        print(f'Generator: {n}')
         global_mins_training = []
         global_mins_instance = []
         for i in range(num_repeation):
@@ -376,7 +378,7 @@ def generate_neighborhood_statistics(x, model, data, X_feat, y, num_instances=10
             dists_training = compute_distance(gen_neighb, an_array)
             dists_instance = compute_distance(gen_neighb, x.reshape(1, -1))
             global_mins_training.append(dists_training[0:num_instances])
-            global_mins_instance.append(dists_instance[0])
+            global_mins_instance.append(dists_instance[0:num_instances])
 
         np_mean_training = np.mean(np.array(global_mins_training), axis=0)
         np_mean_instance = np.mean(np.array(global_mins_instance), axis=0)
@@ -446,19 +448,30 @@ def new_lore(data, bb):
         print(cr)
         print('-----')
 
-def plot_boxplot(df):
+def plot_boxplot(df, basefilename):
     #domain_ = ['Random', 'Custom', 'Genetic', 'GPT']
     #range_ = ['#102ce0', '#fa7907', '#027037', '#FF5733']
-    box_plot = alt.Chart(df).mark_boxplot().encode(
+    box_plot_training = alt.Chart(df[df['Reference']=='training']).mark_boxplot().encode(
         x=alt.X("Distance:Q"),
         y=alt.Y("Neighborhood:N"),
         color=alt.Color("Neighborhood:N") #scale=alt.Scale(domain=domain_, range=range_)
     ).properties(
         height=150,
         width=400,
-        title='Euclidean distances of the neighbourhoods from the instance'
+        title='Euclidean distance to training data'
     )
-    box_plot.save('plot/instance_vs_neigh/boxplot_vessel_instance.pdf')
+    box_plot_training.save(f'plot/instance_vs_neigh/{basefilename}_training.pdf')
+
+    box_plot_instance = alt.Chart(df[df['Reference']=='instance']).mark_boxplot().encode(
+        x=alt.X("Distance:Q"),
+        y=alt.Y("Neighborhood:N"),
+        color=alt.Color("Neighborhood:N") #scale=alt.Scale(domain=domain_, range=range_)
+    ).properties(
+        height=150,
+        width=400,
+        title='Euclidean distance to instance'
+    )
+    box_plot_instance.save(f'plot/instance_vs_neigh/{basefilename}_instance.pdf')
 
 
 if __name__ == '__main__':
@@ -466,9 +479,10 @@ if __name__ == '__main__':
     model, X_feat, y = create_and_train_model(res)
     print(model)
 
-    instance = res.iloc[9, :-1].values  # Example instance
-    result_n = generate_neighborhoods(instance, model, res, X_feat, y, num_instances=100, neighborhood_types=['train', 'random',])
-
+    id_instance = 192
+    instance = res.iloc[id_instance, :-1].values  # Example instance
+    # result_n = generate_neighborhoods(instance, model, res, X_feat, y, num_instances=100, neighborhood_types=['train', 'random',])
+    print(f'Instance {id_instance} is: {instance}')
 
     #new_lore(res, model)
     #instance = res.iloc[9, :-1].values
@@ -478,17 +492,23 @@ if __name__ == '__main__':
     #distances_train = measure_distance(result_n, X_feat.values)
     #Example: extracting a column
 
-    if not os.path.exists('vessels_neighborhoods_10rep.csv'):
+    num_repeation = 1
+    num_instances = 500
+    basefilename = f'vessels_neighborhoods_x_{id_instance}_{num_instances}_{num_repeation}rep'
+    csv = f'{basefilename}.csv'
+    if not os.path.exists('%s' % csv):
         dists = generate_neighborhood_statistics(instance, model, res, res.loc[:,['SpeedMinimum', 'SpeedQ1', 'SpeedMedian', 'SpeedQ3', 'DistanceStartShapeCurvature',
-                    'DistStartTrendAngle', 'DistStartTrendDevAmplitude', 'MaxDistPort', 'MinDistPort']], res['class N'], num_instances=500, num_repeation=2, neighborhood_types=['custom','genetic','custom_genetic','baseline'], an_array=X_feat.values)
-        df = pd.DataFrame([], columns=['Neighborhood', 'Distance'])
+                    'DistStartTrendAngle', 'DistStartTrendDevAmplitude', 'MaxDistPort', 'MinDistPort']], res['class N'], num_instances=num_instances,
+                                                 num_repeation=num_repeation,
+                                                 neighborhood_types=['custom', 'genetic', 'custom_genetic', 'baseline'], an_array=X_feat.values)
+        df = pd.DataFrame([], columns=['Neighborhood', 'Reference', 'Distance'])
         for (n, t, d) in dists:
             df = pd.concat([df, pd.DataFrame({'Neighborhood': [n] * len(d), 'Reference': [t] * len(d),'Distance': d})], axis=0)
-        df.to_csv('vessels_neighborhoods_10rep.csv', index=False)
+        df.to_csv(csv, index=False)
     else:
-        df = pd.read_csv('vessels_neighborhoods_10rep.csv')
+        df = pd.read_csv(csv)
 
-    plot_boxplot(df)
+    plot_boxplot(df, basefilename)
 
 
 

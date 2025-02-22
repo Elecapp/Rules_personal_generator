@@ -270,14 +270,17 @@ def generate_neighborhood_statistics(x, model, data, X_feat, y, num_instances=10
 
     generators = neighborhood_type_to_generators(neighborhood_type, bbox, ds, encoder, X_feat, y)
     for (n, g) in generators:
+        print(f'Generator: {n}')
         global_mins_training = []
         global_mins_instance = []
         for i in range(num_repetition):
+            if i % 2 == 0:
+                print(f"Repetition {i}")
             gen_neigh_z = g.generate(z, num_instances, ds.descriptor, encoder)
             dists_training = calculate_distance(gen_neigh_z, an_array_z)
             dists_instance = calculate_distance(gen_neigh_z, z.reshape(1, -1))
-            global_mins_training.append(dists[0:num_instances])
-            global_mins_instance.append(dists[num_instances])
+            global_mins_training.append(dists_training[0:num_instances])
+            global_mins_instance.append(dists_instance[0:num_instances])
 
         np_mean_training = np.mean(np.array(global_mins_training), axis=0)
         np_mean_instance = np.mean(np.array(global_mins_instance), axis=0)
@@ -496,19 +499,30 @@ def new_lore(res, model):
     #    if len(rl['counterfactuals']) > 0:
     #        print(i)
 
-def plot_boxplot(df):
+def plot_boxplot(df, basefilename):
     #domain_ = ['Random', 'Custom', 'Genetic', 'GPT']
     #range_ = ['#102ce0', '#fa7907', '#027037', '#FF5733']
-    box_plot = alt.Chart(df).mark_boxplot().encode(
-        x=alt.X("Distance:Q").scale(zero=False, domain=[2.5, 4.9]),
+    box_plot_training = alt.Chart(df[df['Reference']=='training']).mark_boxplot().encode(
+        x=alt.X("Distance:Q"),
         y=alt.Y("Neighborhood:N"),
         color=alt.Color("Neighborhood:N") #scale=alt.Scale(domain=domain_, range=range_)
     ).properties(
         height=150,
         width=400,
-        title='Euclidean distances of the neighbourhoods from the instance'
+        title='Euclidean distance to training data'
     )
-    box_plot.save('plot/instance_vs_neigh/boxplot_bay_instance.pdf')
+    box_plot_training.save(f'plot/instance_vs_neigh/{basefilename}_training.pdf')
+
+    box_plot_instance = alt.Chart(df[df['Reference']=='instance']).mark_boxplot().encode(
+        x=alt.X("Distance:Q"),
+        y=alt.Y("Neighborhood:N"),
+        color=alt.Color("Neighborhood:N") #scale=alt.Scale(domain=domain_, range=range_)
+    ).properties(
+        height=150,
+        width=400,
+        title='Euclidean distance to instance'
+    )
+    box_plot_instance.save(f'plot/instance_vs_neigh/{basefilename}_instance.pdf')
 
 
 def calculate_distance(X1: np.array, X2: np.array, y_1: np.array = None, y_2: np.array = None, metric:str='euclidean'):
@@ -521,17 +535,25 @@ if __name__ == '__main__':
     res = load_data_from_csv()
     model = create_and_train_model(res)
     # new_lore(res, model)
-    x = res.iloc[45, :-1].values
-    if not os.path.exists('covid_neighborhoods_10rep.csv'):
-        dists = generate_neighborhood_statistics(x, model, res, res.loc[:, 'Week6_Covid':'Days_passed'], res['Class_label'], num_instances=1000, num_repetition=100, neighborhood_type=['custom','random', 'genetic', 'gpt'], an_array=res.iloc[:, :-1].values)
-        df =pd.DataFrame([], columns=['Neighborhood', 'Distance'])
-        for (n, d) in dists:
-            df = pd.concat([df, pd.DataFrame({'Neighborhood': [n] * len(d), 'Distance': d})], axis=0)
-        df.to_csv('covid_neighborhoods_10rep.csv', index=False)
-    else:
-        df = pd.read_csv('covid_neighborhoods_10rep.csv')
+    id_istance = 45
+    x = res.iloc[id_istance, :-1].values
 
-    plot_boxplot(df)
+    num_repeation = 100
+    num_instances = 3000
+    basefilename = f'covid_neighborhoods_x_{id_istance}_{num_instances}_{num_repeation}rep'
+    csv = f'{basefilename}.csv'
+    if not os.path.exists(csv):
+        dists = generate_neighborhood_statistics(x, model, res, res.loc[:, 'Week6_Covid':'Days_passed'], res['Class_label'],
+                                                 num_instances=num_instances, num_repetition=num_repeation,
+                                                 neighborhood_type=['custom','random', 'genetic', 'gpt', 'baseline'], an_array=res.iloc[:, :-1].values)
+        df =pd.DataFrame([], columns=['Neighborhood', 'Reference', 'Distance'])
+        for (n, t, d) in dists:
+            df = pd.concat([df, pd.DataFrame({'Neighborhood': [n] * len(d), 'Reference': [t] * len(d), 'Distance': d})], axis=0)
+        df.to_csv(csv, index=False)
+    else:
+        df = pd.read_csv(csv)
+
+    plot_boxplot(df, basefilename)
 
 
 
