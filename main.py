@@ -14,9 +14,9 @@ from sklearn.manifold import TSNE
 import umap.umap_ as umap
 #import umap.plot
 
-import matplotlib
-matplotlib.use('TkAgg')
-import matplotlib.pyplot as plt
+# import matplotlib
+# matplotlib.use('TkAgg')
+# import matplotlib.pyplot as plt
 
 from sklearn.preprocessing import StandardScaler
 from sklearn.compose import ColumnTransformer
@@ -24,6 +24,7 @@ from sklearn.pipeline import make_pipeline
 
 
 import random
+
 from lore_sa.dataset import TabularDataset, Dataset
 from lore_sa.bbox import sklearn_classifier_bbox, AbstractBBox
 from lore_sa.neighgen import RandomGenerator
@@ -264,9 +265,12 @@ def generate_neighborhood_statistics(x, model, data, X_feat, y, num_instances=10
     ds = TabularDataset(data=data, class_name='Class_label')
     encoder = ColumnTransformerEnc(ds.descriptor)
     bbox = sklearn_classifier_bbox.sklearnBBox(model)
+    transformer = model.named_steps['columntransformer']
     result = ()
     z = encoder.encode(x.reshape(1, -1))[0]
+    zt = transformer.transform(x.reshape(1, -1))
     an_array_z = encoder.encode(an_array)
+    an_array_zt = transformer.transform(an_array)
 
     generators = neighborhood_type_to_generators(neighborhood_type, bbox, ds, encoder, X_feat, y)
     for (n, g) in generators:
@@ -277,8 +281,10 @@ def generate_neighborhood_statistics(x, model, data, X_feat, y, num_instances=10
             if i % 2 == 0:
                 print(f"Repetition {i}")
             gen_neigh_z = g.generate(z, num_instances, ds.descriptor, encoder)
-            dists_training = calculate_distance(gen_neigh_z, an_array_z)
-            dists_instance = calculate_distance(gen_neigh_z, z.reshape(1, -1))
+            gen_neigh = encoder.decode(gen_neigh_z)
+            gen_neigh_zt = transformer.transform(gen_neigh)
+            dists_training = calculate_distance(gen_neigh_zt, an_array_zt)
+            dists_instance = calculate_distance(gen_neigh_zt, zt)
             global_mins_training.append(dists_training[0:num_instances])
             global_mins_instance.append(dists_instance[0:num_instances])
 
@@ -525,7 +531,7 @@ def plot_boxplot(df, basefilename):
     box_plot_instance.save(f'plot/instance_vs_neigh/{basefilename}_instance.pdf')
 
 
-def calculate_distance(X1: np.array, X2: np.array, y_1: np.array = None, y_2: np.array = None, metric:str='euclidean'):
+def calculate_distance(X1: np.array, X2: np.array, metric:str='euclidean'):
     dists = pairwise_distances(X1, X2, metric=metric)
     dists = np.min(dists, axis=1)
     return dists
@@ -538,14 +544,21 @@ if __name__ == '__main__':
     id_istance = 45
     x = res.iloc[id_istance, :-1].values
 
-    num_repeation = 100
-    num_instances = 3000
+    num_repeation = 1
+    num_instances = 1000
     basefilename = f'covid_neighborhoods_x_{id_istance}_{num_instances}_{num_repeation}rep'
+    neighboorhood_type = [
+        'custom',
+        'random',
+        'genetic',
+        'gpt',
+        'baseline'
+    ]
     csv = f'{basefilename}.csv'
     if not os.path.exists(csv):
         dists = generate_neighborhood_statistics(x, model, res, res.loc[:, 'Week6_Covid':'Days_passed'], res['Class_label'],
                                                  num_instances=num_instances, num_repetition=num_repeation,
-                                                 neighborhood_type=['custom','random', 'genetic', 'gpt', 'baseline'], an_array=res.iloc[:, :-1].values)
+                                                 neighborhood_type=neighboorhood_type, an_array=res.iloc[:, :-1].values)
         df =pd.DataFrame([], columns=['Neighborhood', 'Reference', 'Distance'])
         for (n, t, d) in dists:
             df = pd.concat([df, pd.DataFrame({'Neighborhood': [n] * len(d), 'Reference': [t] * len(d), 'Distance': d})], axis=0)
