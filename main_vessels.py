@@ -420,7 +420,7 @@ def generate_neighborhood_statistics(x, model, data, X_feat, y, num_instances=10
             if i % 2 == 0:
                 print(f"Repetition {i}")
             start = time.time()
-            gen_neighb = g.generate(x, num_instances, ds.descriptor, encoder)
+            gen_neighb = g.generate(x.copy(), num_instances, ds.descriptor, encoder)
             gen_neighb = gen_neighb[:num_instances]
             end = time.time()
             dists_training = compute_distance(gen_neighb, an_array)
@@ -544,8 +544,12 @@ if __name__ == '__main__':
     model, X_feat, y = create_and_train_model(res)
     print(model)
 
-    id_instance = 192
-    instance = res.iloc[id_instance, :-1].values  # Example instance
+    # id_instance = 192
+    # instance = res.iloc[id_instance, :-1].values  # Example instance
+
+    id_instance = 1003
+    instance = np.array([0.91, 2.37, 2.49, 2.78, 2.45, -0.01, 5.07, 27.55, 20.04])  # Example instance
+
     # result_n = generate_neighborhoods(instance, model, res, X_feat, y, num_instances=100, neighborhood_types=['train', 'random',])
     print(f'Instance {id_instance} is: {instance}')
 
