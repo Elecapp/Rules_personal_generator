@@ -542,7 +542,7 @@ if __name__ == '__main__':
     #distances_train = measure_distance(result_n, X_feat.values)
     #Example: extracting a column
 
-    num_repeation = 2
+    num_repeation = 50
     num_instances = 2000
     neighborhood_types = [
         'train',
