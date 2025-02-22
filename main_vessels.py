@@ -1,3 +1,5 @@
+import time
+
 import pandas as pd
 import numpy as np
 
@@ -12,11 +14,6 @@ from sklearn.compose import make_column_selector as selector
 
 import umap
 import umap.umap_ as umap
-
-import matplotlib
-
-matplotlib.use('TkAgg')
-import matplotlib.pyplot as plt
 
 from sklearn.preprocessing import StandardScaler
 from sklearn.compose import ColumnTransformer
@@ -164,6 +161,52 @@ class GeneticVesselsGenerator(GeneticGenerator):
             z[i] = v
 
         return z,
+
+    def mate(self, ind1, ind2):
+        """Executes a two-point crossover on the input :term:`sequence`
+        individuals. The two individuals are modified in place and both keep
+        their original length.
+        This implementation uses the original implementation of the DEAP library. It adds a special case for the
+        one-hot encoding, where the crossover is done taking into account the intervals of values imposed by
+        the one-hot encoding.
+
+        This overrides also keeps the blocks of the speed attributes together, to ensure that the relative values
+        are maintained.
+
+        :param ind1: The first individual participating in the crossover.
+        :param ind2: The second individual participating in the crossover.
+        :returns: A tuple of two individuals.
+
+        This function uses the :func:`~random.randint` function from the Python
+        base :mod:`random` module.
+        """
+        if self.encoder.type == 'one-hot':
+            intervals = [[0, 4], [4, 5], [5, 6], [6, 7], [7, 8], [8, 9]]
+            cxInterval1 = random.randint(0, len(intervals) - 1)
+            cxInterval2 = random.randint(0, len(intervals) - 1)
+            if cxInterval1 > cxInterval2:
+                # Swap the two cx intervals
+                cxInterval1, cxInterval2 = cxInterval2, cxInterval1
+
+            cxpoint1 = intervals[cxInterval1][0]
+            cxpoint2 = intervals[cxInterval2][1]
+            ind1[cxpoint1:cxpoint2], ind2[cxpoint1:cxpoint2] \
+                = ind2[cxpoint1:cxpoint2], ind1[cxpoint1:cxpoint2]
+        else:
+            size = min(len(ind1), len(ind2))
+            cxpoint1 = random.randint(1, size)
+            cxpoint2 = random.randint(1, size - 1)
+            if cxpoint2 >= cxpoint1:
+                cxpoint2 += 1
+            else:  # Swap the two cx points
+                cxpoint1, cxpoint2 = cxpoint2, cxpoint1
+
+            ind1[cxpoint1:cxpoint2], ind2[cxpoint1:cxpoint2] \
+                = ind2[cxpoint1:cxpoint2], ind1[cxpoint1:cxpoint2]
+
+        return ind1, ind2
+
+
 
 
 
@@ -365,26 +408,33 @@ def generate_neighborhood_statistics(x, model, data, X_feat, y, num_instances=10
     encoder = ColumnTransformerEnc(ds.descriptor)
     bbox = sklearn_classifier_bbox.sklearnBBox(model)
     result = ()
+    compl_times = ()
 
     generators = neighborhood_type_to_generators(neighborhood_types, bbox, ds, encoder, X_feat, y)
     for (n, g) in generators:
         print(f'Generator: {n}')
         global_mins_training = []
         global_mins_instance = []
+        global_times = []
         for i in range(num_repeation):
             if i % 2 == 0:
                 print(f"Repetition {i}")
+            start = time.time()
             gen_neighb = g.generate(x, num_instances, ds.descriptor, encoder)
+            gen_neighb = gen_neighb[:num_instances]
+            end = time.time()
             dists_training = compute_distance(gen_neighb, an_array)
             dists_instance = compute_distance(gen_neighb, x.reshape(1, -1))
-            global_mins_training.append(dists_training[0:num_instances])
-            global_mins_instance.append(dists_instance[0:num_instances])
+            global_mins_training.append(dists_training)
+            global_mins_instance.append(dists_instance)
+            global_times.append(end - start)
 
         np_mean_training = np.mean(np.array(global_mins_training), axis=0)
         np_mean_instance = np.mean(np.array(global_mins_instance), axis=0)
         result = result + ((n, 'training', np_mean_training), )
         result = result + ((n, 'instance', np_mean_instance), )
-    return result
+        compl_times = compl_times + ((n, global_times),)
+    return result, compl_times
 
 
 
@@ -492,21 +542,35 @@ if __name__ == '__main__':
     #distances_train = measure_distance(result_n, X_feat.values)
     #Example: extracting a column
 
-    num_repeation = 1
-    num_instances = 500
+    num_repeation = 2
+    num_instances = 2000
+    neighborhood_types = [
+        'train',
+        'random',
+        'custom',
+        'genetic',
+        'custom_genetic',
+        'baseline'
+    ]
+
     basefilename = f'vessels_neighborhoods_x_{id_instance}_{num_instances}_{num_repeation}rep'
     csv = f'{basefilename}.csv'
     if not os.path.exists('%s' % csv):
-        dists = generate_neighborhood_statistics(instance, model, res, res.loc[:,['SpeedMinimum', 'SpeedQ1', 'SpeedMedian', 'SpeedQ3', 'DistanceStartShapeCurvature',
+        dists, compl_times = generate_neighborhood_statistics(instance, model, res, res.loc[:,['SpeedMinimum', 'SpeedQ1', 'SpeedMedian', 'SpeedQ3', 'DistanceStartShapeCurvature',
                     'DistStartTrendAngle', 'DistStartTrendDevAmplitude', 'MaxDistPort', 'MinDistPort']], res['class N'], num_instances=num_instances,
                                                  num_repeation=num_repeation,
-                                                 neighborhood_types=['custom', 'genetic', 'custom_genetic', 'baseline'], an_array=X_feat.values)
+                                                 neighborhood_types=neighborhood_types, an_array=X_feat.values)
         df = pd.DataFrame([], columns=['Neighborhood', 'Reference', 'Distance'])
+        df_times = pd.DataFrame([], columns=['Neighborhood', 'Time'])
         for (n, t, d) in dists:
             df = pd.concat([df, pd.DataFrame({'Neighborhood': [n] * len(d), 'Reference': [t] * len(d),'Distance': d})], axis=0)
+        for (n, t) in compl_times:
+            df_times = pd.concat([df_times, pd.DataFrame({'Neighborhood': [n] * len(t), 'Time': t})], axis=0)
         df.to_csv(csv, index=False)
+        df_times.to_csv(f'{basefilename}_times.csv', index=False)
     else:
         df = pd.read_csv(csv)
+        df_times = pd.read_csv(f'{basefilename}_times.csv')
 
     plot_boxplot(df, basefilename)
 
