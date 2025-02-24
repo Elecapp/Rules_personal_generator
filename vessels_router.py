@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from typing_extensions import Unpack
 
 import logging
@@ -25,6 +27,7 @@ from main_vessels import create_and_train_model, load_data_from_csv, generate_ne
     VesselsGenerator, GeneticVesselsGenerator, neighborhood_type_to_generators
 
 from pydantic import BaseModel
+
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -96,19 +99,20 @@ def dataframe_to_vega(df):
     #     name='brush'
     # )
     brush = alt.selection_interval(bind='scales')
+    selection = alt.selection_point(fields=['neighborhood_type'], bind='legend')
     chartUMAP = alt.Chart(df).mark_point().encode(
         x='umap1:Q',
         y='umap2:Q',
-        color=alt.when(brush).then(alt.Color('neighborhood_type:N', scale=color_scale)).otherwise(
-            alt.value('lightgray')),
+        color=alt.Color('neighborhood_type:N', scale=color_scale).legend(orient="left"),
+        opacity=alt.when(selection).then(alt.value(1)).otherwise(alt.value(0.2)),
         shape='predicted_class:N',
         tooltip=attributes + ['predicted_class', 'neighborhood_type']
     ).properties(
         width=600,
         height=600,
         title='UMAP projection of the Vessels data'
-    )
-    chartUMAP = (chartUMAP.transform_filter(alt.datum.neighborhood_type != 'instance').add_params(brush)
+    ).add_params(selection, brush)
+    chartUMAP = (chartUMAP.transform_filter(alt.datum.neighborhood_type != 'instance')
                  + chartUMAP.transform_filter(alt.datum.neighborhood_type == 'instance')
                  )
     chartClasses = (alt.Chart(df).mark_bar().encode(
@@ -142,6 +146,13 @@ def dataframe_to_vega(df):
         attributeCharts.append(attributeBarChart)
     neighbsCharts = alt.vconcat(*attributeCharts)
     dashboard = (alt.vconcat(chartUMAP, chartClasses, neighbsCharts))
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    chartUMAP.save(f"plot/vessels_dashboard_{timestamp}_umap.html")
+    chartClasses.save(f"plot/vessels_dashboard_{timestamp}_classes.html")
+    neighbsCharts.save(f"plot/vessels_dashboard_{timestamp}_neighbs.html")
+
+
     return dashboard
 
 
@@ -268,18 +279,20 @@ async def explain(request:VesselRequest):
     ds = TabularDataset(data=df_vessels, class_name='class N',categorial_columns=['class N'])
     encoder = ColumnTransformerEnc(ds.descriptor)
     bbox = sklearn_classifier_bbox.sklearnBBox(vessels_model)
-    surrogate = DecisionTreeSurrogate()
+    surrogate = DecisionTreeSurrogate(prune_tree=False)
 
     generators = neighborhood_type_to_generators(neighborhood_types_str, bbox, ds, encoder, vessels_data_train, vessels_target_train)
 
     explanations = {}
     for (n, gen) in generators:
         spec_lore = Lore(bbox, ds, encoder, gen, surrogate)
-        explanation = spec_lore.explain(instance_event, num_instances=request.num_samples)
+        explanation = spec_lore.explain(instance_event.copy(), num_instances=request.num_samples)
         # convert explanation to json string using json.dumps
         # rule = covid_rule_to_dict(explanation['rule'])
         # crRules = [covid_rule_to_dict(cr) for cr in explanation['counterfactuals']]
         explanations[n] = explanation
+        print(f'Confusion matrix for the explanation for generator {n}')
+        print(surrogate.confusion_matrix)
 
 
     return {
