@@ -521,8 +521,8 @@ def plot_boxplot(df, df_times, basefilename):
         y=alt.Y("Neighborhood:N"),
         color=alt.Color("Neighborhood:N") #scale=alt.Scale(domain=domain_, range=range_)
     ).properties(
-        height=150,
-        width=400,
+        height=200,
+        width=200,
         title='Euclidean distance to training data'
     )
     box_plot_training.save(f'plot/instance_vs_neigh/{basefilename}_training.pdf')
@@ -532,11 +532,14 @@ def plot_boxplot(df, df_times, basefilename):
         y=alt.Y("Neighborhood:N"),
         color=alt.Color("Neighborhood:N") #scale=alt.Scale(domain=domain_, range=range_)
     ).properties(
-        height=150,
-        width=400,
+        height=200,
+        width=200,
         title='Euclidean distance to instance'
     )
     box_plot_instance.save(f'plot/instance_vs_neigh/{basefilename}_instance.pdf')
+
+    box_plot_both = box_plot_instance | box_plot_training
+    box_plot_both.save(f'plot/instance_vs_neigh/{basefilename}_both.pdf')
 
 
 if __name__ == '__main__':

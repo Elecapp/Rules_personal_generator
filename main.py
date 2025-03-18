@@ -544,8 +544,8 @@ def plot_boxplot(df, df_times, basefilename):
         y=alt.Y("Neighborhood:N"),
         color=alt.Color("Neighborhood:N") #scale=alt.Scale(domain=domain_, range=range_)
     ).properties(
-        height=150,
-        width=400,
+        height=200,
+        width=200,
         title='Euclidean distance to training data'
     )
     box_plot_training.save(f'plot/instance_vs_neigh/{basefilename}_training.pdf')
@@ -555,11 +555,14 @@ def plot_boxplot(df, df_times, basefilename):
         y=alt.Y("Neighborhood:N"),
         color=alt.Color("Neighborhood:N") #scale=alt.Scale(domain=domain_, range=range_)
     ).properties(
-        height=150,
-        width=400,
+        height=200,
+        width=200,
         title='Euclidean distance to instance'
     )
     box_plot_instance.save(f'plot/instance_vs_neigh/{basefilename}_instance.pdf')
+
+    both_box_plot = box_plot_instance | box_plot_training
+    both_box_plot.save(f'plot/instance_vs_neigh/{basefilename}_both.pdf')
 
 
 def calculate_distance(X1: np.array, X2: np.array, metric:str='euclidean'):
@@ -575,8 +578,8 @@ if __name__ == '__main__':
     id_istance = 45
     x = res.iloc[id_istance, :-1].values
 
-    num_repeation = 5
-    num_instances = 1000
+    num_repeation = 50
+    num_instances = 2000
     basefilename = f'covid_neighborhoods_x_{id_istance}_{num_instances}_{num_repeation}rep'
     neighboorhood_type = [
         'custom',
