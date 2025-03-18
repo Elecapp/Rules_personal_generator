@@ -263,6 +263,50 @@ async def compute_neighborhoods(neigh_request):
     df_neighbs['umap2'] = embedding[:, 1]
     return df_neighbs
 
+def rule_to_dict(rule, descriptor):
+    """
+    Converts a rule to a dictionary where each key is one of the features of the domain dataset and the value is the
+    interval of definition of the rule.
+
+    Parameters:
+        explanation: a rule object from lore
+        descriptor: a descriptor object from lore
+
+    Returns:
+
+    """
+    descr_features = []
+    for cf in descriptor['categorical']:
+        descr_features.append({cf: descriptor['categorical'][cf]})
+    for nf in descriptor['numeric']:
+        descr_features.append({nf: descriptor['numeric'][nf]})
+
+    intervals = {}
+    for i, f in enumerate(descr_features):
+        # the feature f should contain a single key
+        fkey = list(f.keys())[0]
+        boundaries =[-np.inf, np.inf]
+        for j, iv in enumerate(rule['premises']):
+            if fkey == iv['attr']:
+                if iv['op'] == '<=' and iv['val'] < boundaries[1]:
+                    boundaries[1] = iv['val']
+                elif iv['op'] == '>' and iv['val'] > boundaries[0]:
+                    boundaries[0] = iv['val']
+        intervals[fkey] = boundaries
+
+    return intervals
+
+def intervals_to_str(intervals):
+    """
+    receives a dictionary of intervals and returns a string representation of the intervals
+    The string output for each feature has the form: feature_name: {lower_bound, upper_bound}. The features are separated
+    by a semicolon.
+    """
+    str_intervals = []
+    for f in intervals:
+        str_intervals.append(f"{f}: " + "{" + str(intervals[f][0]) + ", " + str(intervals[f][1]) + "}")
+    return "; ".join(str_intervals)
+
 
 @vessels_router.post("/explain", tags=["Vessels"])
 async def explain(request:VesselRequest):
@@ -291,8 +335,19 @@ async def explain(request:VesselRequest):
         # rule = covid_rule_to_dict(explanation['rule'])
         # crRules = [covid_rule_to_dict(cr) for cr in explanation['counterfactuals']]
         explanations[n] = explanation
+
         print(f'Confusion matrix for the explanation for generator {n}')
         print(surrogate.confusion_matrix)
+
+    for n in explanations:
+        # output
+        # instance id, predicted class, rule_id(R0, C1, C2, ...), rule intervals
+        intervals = rule_to_dict(explanations[n]['rule'], ds.descriptor)
+        print(f'R0,{n},{intervals_to_str(intervals)},{explanations[n]["rule"]["consequence"]["val"]}')
+        for i, cr in enumerate(explanations[n]['counterfactuals']):
+            intervals = rule_to_dict(cr, ds.descriptor)
+            print(f'C{i+1},{n},{intervals_to_str(intervals)},{cr["consequence"]["val"]}')
+
 
 
     return {
