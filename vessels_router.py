@@ -16,6 +16,7 @@ from starlette.responses import StreamingResponse, JSONResponse, Response
 
 import altair as alt
 
+import vessels_utils
 from lore_sa.bbox import sklearn_classifier_bbox
 from lore_sa.dataset import TabularDataset
 from lore_sa.encoder_decoder import ColumnTransformerEnc
@@ -41,16 +42,16 @@ class VesselEvent(BaseModel):
     SpeedQ1: float
     SpeedMedian: float
     SpeedQ3: float
-    DistanceStartShapeCurvature: float
+    Log10Curvature: float
     DistanceStartTrendAngle: float
-    DistStartTrendDevAmplitude: float
+    Log10DistStartTrendDevAmplitude: float
     MaxDistPort: float
-    MinDistPort: float
+    Log10MinDistPort: float
 
     def to_list(self):
         return [self.SpeedMinimum, self.SpeedQ1, self.SpeedMedian, self.SpeedQ3,
-                self.DistanceStartShapeCurvature, self.DistanceStartTrendAngle, self.DistStartTrendDevAmplitude,
-                self.MaxDistPort, self.MinDistPort]
+                self.Log10Curvature, self.DistanceStartTrendAngle, self.Log10DistStartTrendDevAmplitude,
+                self.MaxDistPort, self.Log10MinDistPort]
 
 class VesselRequest(BaseModel):
     vessel_event: VesselEvent
@@ -88,8 +89,7 @@ vessels_router = fastapi.APIRouter(
 
 
 def dataframe_to_vega(df):
-    attributes = ['SpeedMinimum', 'SpeedQ1', 'SpeedMedian', 'SpeedQ3', 'DistanceStartShapeCurvature',
-                  'DistStartTrendAngle', 'DistStartTrendDevAmplitude', 'MaxDistPort', 'MinDistPort']
+    attributes = vessels_utils.vessels_features
     # create a nominal colro scale for the neighborhood types
     color_scale = alt.Scale(domain=['instance', 'train', 'random', 'custom', 'genetic', 'custom_genetic', 'baseline'],
                             range=['#333333', '#66c2a5', '#fc8d62', '#8da0cb', '#e78ac3', '#a6d854', '#e5c494'])
@@ -189,11 +189,11 @@ async def neighborhood(neigh_request: VesselRequest):
                 "SpeedQ1": 0.0,
                 "SpeedMedian": 0.0,
                 "SpeedQ3": 0.0,
-                "DistanceStartShapeCurvature": 0.0,
+                "Log10Curvature": 0.0,
                 "DistanceStartTrendAngle": 0.0,
-                "DistStartTrendDevAmplitude": 0.0,
+                "Log10DistStartTrendDevAmplitude": 0.0,
                 "MaxDistPort": 0.0,
-                "MinDistPort": 0.0
+                "Log10MinDistPort": 0.0
             },
             "num_samples": 10,
             "neighborhood_types": [

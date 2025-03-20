@@ -22,6 +22,8 @@ from sklearn.pipeline import make_pipeline
 
 import random
 import math
+
+import vessels_utils
 from lore_sa.dataset import TabularDataset, Dataset
 from lore_sa.bbox import sklearn_classifier_bbox, AbstractBBox
 from lore_sa.neighgen import RandomGenerator
@@ -105,8 +107,7 @@ class VesselsGenerator(NeighborhoodGenerator):
         feature_indices = [f[4] for f in influencing_features]
 
         # make a deep copy of x in the variable perturbed_arr
-        attributes = ['SpeedMinimum', 'SpeedQ1', 'SpeedMedian', 'SpeedQ3', 'DistanceStartShapeCurvature',
-                'DistStartTrendAngle', 'DistStartTrendDevAmplitude', 'MaxDistPort', 'MinDistPort']
+        attributes = vessels_utils.vessels_features
 
         perturbed_arr = instance.copy()
         for i, v in enumerate(perturbed_arr):
@@ -304,8 +305,7 @@ def load_data_from_csv():
 
 
     df = pd.read_csv("datasets/final_df_addedfeat.csv")
-    features = ['SpeedMinimum', 'SpeedQ1', 'SpeedMedian', 'SpeedQ3', 'DistanceStartShapeCurvature',
-                'DistStartTrendAngle', 'DistStartTrendDevAmplitude', 'MaxDistPort', 'MinDistPort', 'class N']
+    features = vessels_utils.vessels_features  + ['class N']
     df['class N'] = df['class N'].astype(str)
 
     return df[features]
@@ -578,8 +578,7 @@ if __name__ == '__main__':
     basefilename = f'vessels_neighborhoods_x_{id_instance}_{num_instances}_{num_repeation}rep'
     csv = f'{basefilename}.csv'
     if not os.path.exists('%s' % csv):
-        dists, compl_times = generate_neighborhood_statistics(instance, model, res, res.loc[:,['SpeedMinimum', 'SpeedQ1', 'SpeedMedian', 'SpeedQ3', 'DistanceStartShapeCurvature',
-                    'DistStartTrendAngle', 'DistStartTrendDevAmplitude', 'MaxDistPort', 'MinDistPort']], res['class N'], num_instances=num_instances,
+        dists, compl_times = generate_neighborhood_statistics(instance, model, res, res.loc[:,vessels_utils.vessels_features], res['class N'], num_instances=num_instances,
                                                  num_repeation=num_repeation,
                                                  neighborhood_types=neighborhood_types, an_array=X_feat.values)
         df = pd.DataFrame([], columns=['Neighborhood', 'Reference', 'Distance'])

@@ -6,13 +6,13 @@ import requests
 import json
 import altair as alt
 
+import vessels_utils
 from main_vessels import load_data_from_csv
 from vessels_router import dataframe_to_vega
 
 alt.data_transformers.enable('default', max_rows=None)
 
-attributes = ['SpeedMinimum', 'SpeedQ1', 'SpeedMedian', 'SpeedQ3', 'DistanceStartShapeCurvature',
-                'DistStartTrendAngle', 'DistStartTrendDevAmplitude', 'MaxDistPort', 'MinDistPort']
+attributes = vessels_utils.vessels_features
 
 # Function to get the data from the Vessels API
 # Prepare and send a POST request to the Vessels API

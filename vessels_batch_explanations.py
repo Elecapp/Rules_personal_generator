@@ -19,7 +19,10 @@ async def main():
         'Distance from the start trend line angle': 'DistanceStartTrendAngle',
         'Amplitude of deviations from the trend line of distance from the start': 'DistStartTrendDevAmplitude',
         'Max distance to nearest port (km)': 'MaxDistPort',
-        'Min distance to nearest port (km)': 'MinDistPort'
+        'Min distance to nearest port (km)': 'MinDistPort',
+        'Log10 of distance from the start: shape curvature': 'Log10Curvature',
+        'Log10 of amplitude of deviations from the trend line of distance from the start': 'Log10DistStartTrendDevAmplitude',
+        'Log10 of min distance to nearest port': 'Log10MinDistPort'
     }
 
     # Rename the columns
@@ -27,7 +30,7 @@ async def main():
     print(df.columns)
     print(df.shape)
 
-    output_csv = 'output_vessels_batch_120.csv'
+    output_csv = 'output_vessels_batch_120_logAttribute_n2000_all_neighbs.csv'
 
     for i, row in df.iterrows():
 
@@ -36,11 +39,11 @@ async def main():
             SpeedQ1 = row['SpeedQ1'],
             SpeedMedian = row['SpeedMedian'],
             SpeedQ3 = row['SpeedQ3'],
-            DistanceStartShapeCurvature = row['DistanceStartShapeCurvature'],
+            Log10Curvature = row['Log10Curvature'],
             DistanceStartTrendAngle = row['DistanceStartTrendAngle'],
-            DistStartTrendDevAmplitude = row['DistStartTrendDevAmplitude'],
+            Log10DistStartTrendDevAmplitude = row['Log10DistStartTrendDevAmplitude'],
             MaxDistPort = row['MaxDistPort'],
-            MinDistPort = row['MinDistPort']
+            Log10MinDistPort = row['MinDistPort']
         )
 
         vr = VesselRequest(
