@@ -304,7 +304,7 @@ def intervals_to_str(intervals):
     """
     str_intervals = []
     for f in intervals:
-        str_intervals.append(f"{f}: " + "{" + str(intervals[f][0]) + ", " + str(intervals[f][1]) + "}")
+        str_intervals.append(f"{f}: " + "{" + str(intervals[f][0]) + ": " + str(intervals[f][1]) + "}")
     return "; ".join(str_intervals)
 
 
@@ -336,19 +336,8 @@ async def explain(request:VesselRequest):
         # crRules = [covid_rule_to_dict(cr) for cr in explanation['counterfactuals']]
         explanations[n] = explanation
 
-        print(f'Confusion matrix for the explanation for generator {n}')
-        print(surrogate.confusion_matrix)
-
-    for n in explanations:
-        # output
-        # instance id, predicted class, rule_id(R0, C1, C2, ...), rule intervals
-        intervals = rule_to_dict(explanations[n]['rule'], ds.descriptor)
-        print(f'R0,{n},{intervals_to_str(intervals)},{explanations[n]["rule"]["consequence"]["val"]}')
-        for i, cr in enumerate(explanations[n]['counterfactuals']):
-            intervals = rule_to_dict(cr, ds.descriptor)
-            print(f'C{i+1},{n},{intervals_to_str(intervals)},{cr["consequence"]["val"]}')
-
-
+        # print(f'Confusion matrix for the explanation for generator {n}')
+        # print(surrogate.confusion_matrix)
 
     return {
         'instance': instance_event.tolist(),
