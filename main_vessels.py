@@ -138,6 +138,302 @@ class VesselsGenerator(NeighborhoodGenerator):
 
         return mask_indices_arr
 
+class VesselsLLMGenerator(NeighborhoodGenerator):
+    def __init__(self, bbox: AbstractBBox, dataset: Dataset, encoder: EncDec, perturbation_scale=0.05):
+        super().__init__(bbox, dataset, encoder, ocr=0.1)
+        self.neighborhood = None
+        self.perturbation_scale = perturbation_scale
+
+        self.feature_names = [
+            "SpeedMinimum",  #0
+            "SpeedQ1",  #1
+            "SpeedMedian",  #2
+            "SpeedQ3",  #3
+            "Log10Curvature",   #4
+            "DistStartTrendAngle",  #5
+            "Log10DistStartTrendDevAmplitude",  #6
+            "MaxDistPort",  #7
+            "Log10MinDistPort"  #8
+        ]
+
+        # Define feature constraints
+        self.constraints = {
+            "SpeedQ3_max": 22.0,
+            "DistStartTrendAngle_range": [-0.24, 0.36],
+            "Log10Curvature_range": [0.0, 2.25], # Curvature cannot be negative
+            "Log10DistStartTrendDevAmplitude_range": [-2.8, 1.8],
+            "Log10MinDistPort_min": -3.05,
+            # Thresholds for "high speed" and "curvy movement" for the interaction constraint
+            "high_speed_threshold": 10.0,      # SpeedMedian above this is considered high
+            "curvy_movement_threshold": 0.5    # Log10Curvature above this is considered curvy
+        }
+
+        # Define which features are logarithmic for precision formatting
+        self.log_features = [
+            "Log10Curvature",
+            "Log10DistStartTrendDevAmplitude",
+            "Log10MinDistPort"
+        ]
+
+    def _clamp(self, value, min_val, max_val):
+        """Clamps a value within a specified range."""
+        return max(min_val, min(value, max_val))
+
+    def _apply_constraints(self, instance):
+        """
+        Applies and enforces all defined realistic constraints on a data instance.
+
+        Args:
+            instance (np.array): A dictionary representing a single data instance.
+
+        Returns:
+            dict: The instance with applied constraints.
+        """
+        # Ensure speed quartile relationships
+        instance["SpeedQ1"] = self._clamp(instance["SpeedQ1"], instance["SpeedMinimum"], float('inf'))
+        instance["SpeedMedian"] = self._clamp(instance["SpeedMedian"], instance["SpeedQ1"], float('inf'))
+        instance["SpeedQ3"] = self._clamp(instance["SpeedQ3"], instance["SpeedMedian"], self.constraints["SpeedQ3_max"])
+
+        # Enforce SpeedMinimum >= 0
+        instance["SpeedMinimum"] = max(0.0, instance["SpeedMinimum"])
+        instance["SpeedQ1"] = max(instance["SpeedMinimum"], instance["SpeedQ1"])
+        instance["SpeedMedian"] = max(instance["SpeedQ1"], instance["SpeedMedian"])
+        instance["SpeedQ3"] = max(instance["SpeedMedian"], instance["SpeedQ3"])
+
+        # High speed cannot be achieved during curvy movements
+        if (instance["SpeedMedian"] > self.constraints["high_speed_threshold"] and
+            instance["Log10Curvature"] > self.constraints["curvy_movement_threshold"]):
+            # Reduce speed or curvature. Prioritize reducing speed slightly
+            # and then curvature to bring it into a more realistic state.
+            instance["SpeedMedian"] *= random.uniform(0.7, 0.9) # Reduce speed
+            instance["SpeedQ3"] = max(instance["SpeedMedian"], instance["SpeedQ3"] * random.uniform(0.8, 0.95))
+            instance["SpeedQ1"] = min(instance["SpeedMedian"], instance["SpeedQ1"] * random.uniform(0.8, 0.95))
+            instance["SpeedMinimum"] = min(instance["SpeedQ1"], instance["SpeedMinimum"] * random.uniform(0.8, 0.95))
+
+            # If still problematic, increase curvature slightly to be more realistic for low speed
+            if instance["SpeedMedian"] < 5: # If speed becomes very low, curvature might increase
+                 instance["Log10Curvature"] = self._clamp(instance["Log10Curvature"] * random.uniform(1.0, 1.2),
+                                                           self.constraints["Log10Curvature_range"][0],
+                                                           self.constraints["Log10Curvature_range"][1])
+
+        # Enforce range constraints
+        instance["DistStartTrendAngle"] = self._clamp(
+            instance["DistStartTrendAngle"],
+            self.constraints["DistStartTrendAngle_range"][0],
+            self.constraints["DistStartTrendAngle_range"][1]
+        )
+        instance["Log10Curvature"] = self._clamp(
+            instance["Log10Curvature"],
+            self.constraints["Log10Curvature_range"][0],
+            self.constraints["Log10Curvature_range"][1]
+        )
+        instance["Log10DistStartTrendDevAmplitude"] = self._clamp(
+            instance["Log10DistStartTrendDevAmplitude"],
+            self.constraints["Log10DistStartTrendDevAmplitude_range"][0],
+            self.constraints["Log10DistStartTrendDevAmplitude_range"][1]
+        )
+        instance["Log10MinDistPort"] = self._clamp(
+            instance["Log10MinDistPort"],
+            self.constraints["Log10MinDistPort_min"],
+            float('inf') # No upper bound specified, so infinity
+        )
+        # MaxDistPort should also be non-negative
+        instance["MaxDistPort"] = max(0.0, instance["MaxDistPort"])
+
+        # Ensure Log10Curvature is non-negative
+        instance["Log10Curvature"] = max(0.0, instance["Log10Curvature"])
+
+        return instance
+
+    def _perturb_feature(self, value, scale):
+        """Applies a random perturbation to a feature value."""
+        return value * (1 + random.uniform(-scale, scale))
+
+    def _generate_single_instance(self, original_instance, target_class_tendency):
+        """
+        Generates a single synthetic instance with a tendency towards a specific class.
+
+        Args:
+            original_instance (dict): The base instance to perturb.
+            target_class_tendency (int): An integer (1-6) indicating the desired class tendency.
+
+        Returns:
+            dict: A new synthetic instance.
+        """
+        new_instance = original_instance.copy()
+        base_perturbation = self.perturbation_scale
+
+        # Apply general perturbation to all features first
+        for feature in self.feature_names:
+            if feature not in ["MaxDistPort", "Log10MinDistPort"]: # MaxDistPort can have larger swings
+                new_instance[feature] = self._perturb_feature(new_instance[feature], base_perturbation)
+            else:
+                 # MaxDistPort can have larger absolute changes
+                 new_instance[feature] += random.uniform(-base_perturbation * 20, base_perturbation * 20)
+
+
+        # Apply targeted perturbations based on class tendency
+        if target_class_tendency == 1: # Straight movement
+            new_instance["SpeedMinimum"] = self._perturb_feature(new_instance["SpeedMinimum"], base_perturbation * 0.5)
+            new_instance["SpeedQ1"] = self._perturb_feature(new_instance["SpeedQ1"], base_perturbation * 0.5)
+            new_instance["SpeedMedian"] = self._perturb_feature(new_instance["SpeedMedian"], base_perturbation * 0.5)
+            new_instance["SpeedQ3"] = self._perturb_feature(new_instance["SpeedQ3"], base_perturbation * 0.5)
+            # Aim for high and consistent speed
+            avg_speed = (new_instance["SpeedMinimum"] + new_instance["SpeedQ3"]) / 2
+            new_instance["SpeedQ3"] = self._clamp(avg_speed + 5, new_instance["SpeedMedian"], self.constraints["SpeedQ3_max"])
+            new_instance["SpeedMedian"] = self._clamp(avg_speed + 2, new_instance["SpeedQ1"], new_instance["SpeedQ3"])
+            new_instance["SpeedQ1"] = self._clamp(avg_speed - 1, new_instance["SpeedMinimum"], new_instance["SpeedMedian"])
+            new_instance["SpeedMinimum"] = self._clamp(avg_speed - 3, 0.0, new_instance["SpeedQ1"])
+
+
+            new_instance["Log10Curvature"] = random.uniform(0, 0.01) # Very low curvature
+            new_instance["Log10DistStartTrendDevAmplitude"] = random.uniform(-1.0, 0.5) # Low deviation
+            new_instance["DistStartTrendAngle"] = random.uniform(0.1, 0.3) # Strong positive trend
+            new_instance["Log10MinDistPort"] = self._perturb_feature(new_instance["Log10MinDistPort"], base_perturbation * 2) # Can be further from port
+            new_instance["MaxDistPort"] = self._perturb_feature(new_instance["MaxDistPort"], base_perturbation * 2) # Can be further from port
+
+        elif target_class_tendency == 2: # Curved movement
+            new_instance["SpeedMinimum"] = self._perturb_feature(new_instance["SpeedMinimum"], base_perturbation * 0.8)
+            new_instance["SpeedQ1"] = self._perturb_feature(new_instance["SpeedQ1"], base_perturbation * 0.8)
+            new_instance["SpeedMedian"] = self._perturb_feature(new_instance["SpeedMedian"], base_perturbation * 0.8)
+            new_instance["SpeedQ3"] = self._perturb_feature(new_instance["SpeedQ3"], base_perturbation * 0.8)
+            # Moderate to high speed
+            avg_speed = (new_instance["SpeedMinimum"] + new_instance["SpeedQ3"]) / 2
+            new_instance["SpeedQ3"] = self._clamp(avg_speed + 3, new_instance["SpeedMedian"], self.constraints["SpeedQ3_max"])
+            new_instance["SpeedMedian"] = self._clamp(avg_speed + 1, new_instance["SpeedQ1"], new_instance["SpeedQ3"])
+            new_instance["SpeedQ1"] = self._clamp(avg_speed - 1, new_instance["SpeedMinimum"], new_instance["SpeedMedian"])
+            new_instance["SpeedMinimum"] = self._clamp(avg_speed - 2, 0.0, new_instance["SpeedQ1"])
+
+            new_instance["Log10Curvature"] = random.uniform(0.05, 0.5) # Moderate curvature
+            new_instance["Log10DistStartTrendDevAmplitude"] = random.uniform(0.0, 1.0) # Moderate deviation
+            new_instance["DistStartTrendAngle"] = random.uniform(-0.1, 0.2) # Can vary
+            new_instance["Log10MinDistPort"] = self._perturb_feature(new_instance["Log10MinDistPort"], base_perturbation * 1.5)
+            new_instance["MaxDistPort"] = self._perturb_feature(new_instance["MaxDistPort"], base_perturbation * 1.5)
+
+        elif target_class_tendency == 3: # Trawling
+            new_instance["SpeedMinimum"] = self._perturb_feature(new_instance["SpeedMinimum"], base_perturbation * 0.5)
+            new_instance["SpeedQ1"] = self._perturb_feature(new_instance["SpeedQ1"], base_perturbation * 0.5)
+            new_instance["SpeedMedian"] = self._perturb_feature(new_instance["SpeedMedian"], base_perturbation * 0.5)
+            new_instance["SpeedQ3"] = self._perturb_feature(new_instance["SpeedQ3"], base_perturbation * 0.5)
+            # Low to moderate, consistent speed
+            avg_speed = (new_instance["SpeedMinimum"] + new_instance["SpeedQ3"]) / 2
+            new_instance["SpeedQ3"] = self._clamp(avg_speed + 1, new_instance["SpeedMedian"], 10.0) # Trawling max speed
+            new_instance["SpeedMedian"] = self._clamp(avg_speed + 0.5, new_instance["SpeedQ1"], new_instance["SpeedQ3"])
+            new_instance["SpeedQ1"] = self._clamp(avg_speed - 0.2, new_instance["SpeedMinimum"], new_instance["SpeedMedian"])
+            new_instance["SpeedMinimum"] = self._clamp(avg_speed - 0.5, 0.0, new_instance["SpeedQ1"])
+
+            new_instance["Log10Curvature"] = random.uniform(0.1, 0.6) # Moderate curvature
+            new_instance["Log10DistStartTrendDevAmplitude"] = random.uniform(0.0, 1.0) # Moderate deviation
+            new_instance["DistStartTrendAngle"] = random.uniform(-0.05, 0.05) # Small angle, not strong trend
+            new_instance["Log10MinDistPort"] = self._perturb_feature(new_instance["Log10MinDistPort"], base_perturbation * 1.5)
+            new_instance["MaxDistPort"] = self._perturb_feature(new_instance["MaxDistPort"], base_perturbation * 1.5)
+
+        elif target_class_tendency == 4: # Port-connected
+            # Speed can vary, often starts very low then increases
+            new_instance["SpeedMinimum"] = random.uniform(0.0, 1.0)
+            new_instance["SpeedQ1"] = self._perturb_feature(new_instance["SpeedQ1"], base_perturbation * 1.5)
+            new_instance["SpeedMedian"] = self._perturb_feature(new_instance["SpeedMedian"], base_perturbation * 1.5)
+            new_instance["SpeedQ3"] = self._perturb_feature(new_instance["SpeedQ3"], base_perturbation * 1.5)
+
+            new_instance["Log10Curvature"] = random.uniform(0.0, 0.5) # Low to moderate
+            new_instance["Log10DistStartTrendDevAmplitude"] = random.uniform(0.5, 1.5) # High zigzagging near port
+            new_instance["DistStartTrendAngle"] = random.uniform(-0.1, 0.1) # Often close to 0
+            new_instance["Log10MinDistPort"] = random.uniform(-2.5, -0.5) # Close to port
+            new_instance["MaxDistPort"] = random.uniform(10.0, 30.0) # Moderate max distance
+
+        elif target_class_tendency == 5: # Near port
+            # Very low speed
+            new_instance["SpeedMinimum"] = random.uniform(0.0, 0.1)
+            new_instance["SpeedQ1"] = random.uniform(0.01, 0.2)
+            new_instance["SpeedMedian"] = random.uniform(0.05, 0.3)
+            new_instance["SpeedQ3"] = random.uniform(0.1, 0.5)
+
+            new_instance["Log10Curvature"] = random.uniform(0.3, 1.0) # Moderate to high curvature (manoeuvring)
+            new_instance["Log10DistStartTrendDevAmplitude"] = random.uniform(0.5, 1.8) # High deviation (erratic)
+            new_instance["DistStartTrendAngle"] = random.uniform(-0.05, 0.05) # Very close to 0
+            new_instance["Log10MinDistPort"] = random.uniform(-1.0, -0.3) # Very close to port
+            new_instance["MaxDistPort"] = random.uniform(0.1, 5.0) # Small max distance
+
+        elif target_class_tendency == 6: # Anchored
+            # Extremely low speed (near zero)
+            new_instance["SpeedMinimum"] = random.uniform(0.0, 0.01)
+            new_instance["SpeedQ1"] = random.uniform(0.005, 0.05)
+            new_instance["SpeedMedian"] = random.uniform(0.01, 0.1)
+            new_instance["SpeedQ3"] = random.uniform(0.05, 0.2)
+
+            new_instance["Log10Curvature"] = random.uniform(1.0, 2.2) # High curvature (small movements)
+            new_instance["Log10DistStartTrendDevAmplitude"] = random.uniform(-2.8, -1.5) # Very low deviation (in-place)
+            new_instance["DistStartTrendAngle"] = random.uniform(-0.01, 0.01) # Near zero
+            new_instance["Log10MinDistPort"] = random.uniform(-0.8, -0.3) # Very close to port
+            new_instance["MaxDistPort"] = random.uniform(0.0, 1.0) # Very small max distance
+
+        # Ensure speed quartiles remain ordered after targeted adjustments but before final clamp
+        new_instance["SpeedQ1"] = max(new_instance["SpeedMinimum"], new_instance["SpeedQ1"])
+        new_instance["SpeedMedian"] = max(new_instance["SpeedQ1"], new_instance["SpeedMedian"])
+        new_instance["SpeedQ3"] = max(new_instance["SpeedMedian"], new_instance["SpeedQ3"])
+
+        # Apply constraints before final formatting
+        new_instance = self._apply_constraints(new_instance)
+
+        # Apply precision formatting
+        formatted_instance = {}
+        for feature, value in new_instance.items():
+            if feature in self.log_features:
+                formatted_instance[feature] = round(value, 5)
+            else:
+                formatted_instance[feature] = round(value, 3)
+
+        return formatted_instance
+
+
+    def generate(self, original_instance_values, num_synthetic_instances=60, descriptor: dict=None, encoder=None):
+        """
+        Generates a specified number of synthetic data instances.
+
+        Args:
+            original_instance_values (list or dict): The feature values of the
+                original instance. If a list, it must be in the order:
+                SpeedMinimum, SpeedQ1, SpeedMedian, SpeedQ3, Log10Curvature,
+                DistStartTrendAngle, Log10DistStartTrendDevAmplitude,
+                MaxDistPort, Log10MinDistPort.
+            num_synthetic_instances (int): The total number of synthetic instances to generate.
+                                           This will be distributed across the 6 classes.
+
+        Returns:
+            list[dict]: A list of generated synthetic data instances,
+                        each as a dictionary of feature_name: value.
+        """
+        if isinstance(original_instance_values, (list, np.ndarray)):
+            if len(original_instance_values) != len(self.feature_names):
+                raise ValueError(
+                    f"Original instance list must have {len(self.feature_names)} features. "
+                    f"Got {len(original_instance_values)}."
+                )
+            original_instance = dict(zip(self.feature_names, original_instance_values))
+        elif isinstance(original_instance_values, dict):
+            # Validate if all expected features are present
+            if not all(feature in original_instance_values for feature in self.feature_names):
+                raise ValueError("Original instance dictionary is missing required features.")
+            original_instance = original_instance_values
+        else:
+            raise TypeError("original_instance_values must be a list or a dictionary.")
+
+        synthetic_data = []
+        instances_per_class = num_synthetic_instances // 6
+        remaining_instances = num_synthetic_instances % 6
+
+        for class_tendency in range(1, 7): # Iterate through each of the 6 classes
+            count = instances_per_class + (1 if class_tendency <= remaining_instances else 0)
+            for _ in range(count):
+                synthetic_instance = self._generate_single_instance(original_instance, class_tendency)
+                synthetic_data.append(synthetic_instance)
+
+        # Shuffle the data to mix instances from different "target" classes
+        random.shuffle(synthetic_data)
+        array_output = np.array([[instance[feature] for feature in self.feature_names]
+                             for instance in synthetic_data], dtype=np.float64)
+
+        return array_output
 
 
 class GeneticVesselsGenerator(GeneticGenerator):
@@ -367,6 +663,9 @@ def neighborhood_type_to_generators(neighborhood_types:[str], bbox, ds, encoder,
     if 'baseline' in neighborhood_types:
         baseline_generator = BaselineTrainingGenerator(bbox, ds, encoder, df_train=data_train)
         generators.append(('baseline', baseline_generator))
+    if 'llm' in neighborhood_types:
+        llm_generator = VesselsLLMGenerator(bbox, ds, encoder, perturbation_scale=0.05)
+        generators.append(('llm', llm_generator))
 
     return generators
 

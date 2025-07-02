@@ -35,7 +35,7 @@ logging.basicConfig(level=logging.INFO)
 
 logging.getLogger('numba').setLevel(logging.ERROR)
 
-neighborhood_type_labels = ['train', 'random', 'custom', 'genetic', 'custom_genetic']
+neighborhood_type_labels = ['train', 'random', 'custom', 'genetic', 'custom_genetic', 'llm']
 
 class VesselEvent(BaseModel):
     SpeedMinimum: float
@@ -56,7 +56,7 @@ class VesselEvent(BaseModel):
 class VesselRequest(BaseModel):
     vessel_event: VesselEvent
     num_samples: int = 500
-    neighborhood_types: List[Literal['train', 'random', 'custom', 'genetic', 'custom_genetic', 'baseline']]
+    neighborhood_types: List[Literal['train', 'random', 'custom', 'genetic', 'custom_genetic', 'baseline', 'llm']]
 
 
 # ===================================================================================
@@ -74,7 +74,7 @@ reducer = umap.UMAP(
         n_neighbors=5,
         min_dist= 0.3,
         n_components=2,
-        metric='chebyshev',
+        metric='euclidean',
         verbose=False
     )
 
@@ -91,8 +91,8 @@ vessels_router = fastapi.APIRouter(
 def dataframe_to_vega(df):
     attributes = vessels_utils.vessels_features
     # create a nominal colro scale for the neighborhood types
-    color_scale = alt.Scale(domain=['instance', 'train', 'random', 'custom', 'genetic', 'custom_genetic', 'baseline'],
-                            range=['#333333', '#66c2a5', '#fc8d62', '#8da0cb', '#e78ac3', '#a6d854', '#e5c494'])
+    color_scale = alt.Scale(domain=['instance', 'train', 'random', 'custom', 'genetic', 'custom_genetic', 'baseline', 'llm'],
+                            range=['#333333', '#66c2a5', '#fc8d62', '#8da0cb', '#e78ac3', '#a6d854', '#e5c494', '#ffd92f'])
     # create a chart of the projected points
     # brush = alt.selection_interval(
     #     on="[pointerdown[event.altKey], pointerup] > pointermove",
