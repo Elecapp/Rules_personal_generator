@@ -282,7 +282,7 @@ async def compute_neighborhoods(request):
 
 
 @covid_router.post("/explain")
-def explain(request: CovidRequest):
+async def explain(request: CovidRequest):
     prediction = classify(request.event)
     #print('prediction', prediction)
     instance = request.event.to_list()
