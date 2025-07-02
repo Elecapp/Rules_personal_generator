@@ -8,12 +8,13 @@ from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import make_pipeline
 from sklearn.compose import make_column_selector as selector
 
+import vessels_utils
+
 df = pd.read_csv("final_df_addedfeat.csv")
 
 #features = ['SpeedMinimum', 'SpeedQ1', 'SpeedMedian', 'SpeedQ3', 'Log10Curvature',
 #            'DistStartTrendAngle', 'Log10DistStartTrendDevAmplitude', 'MaxDistPort', 'Log10MinDistPort']
-features = ['SpeedMinimum', 'SpeedQ1', 'SpeedMedian', 'SpeedQ3', 'DistanceStartShapeCurvature',
-            'DistStartTrendAngle', 'DistStartTrendDevAmplitude', 'MaxDistPort', 'MinDistPort']
+features = vessels_utils.vessels_features
 label = "class N"
 
 X_feat = df.loc[:, features]

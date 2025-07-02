@@ -48,8 +48,8 @@ async def main():
 
         vr = VesselRequest(
             vessel_event = ve,
-            num_samples = 2000,
-            neighborhood_types = ['random', 'custom', 'genetic', 'custom_genetic', 'baseline']
+            num_samples = 500,
+            neighborhood_types = ['random', 'custom', 'genetic', 'custom_genetic', 'baseline', 'llm']
         )
 
         ds = TabularDataset(data=df_vessels, class_name='class N', categorial_columns=['class N'])
@@ -63,6 +63,7 @@ async def main():
                 # instance id, predicted class, rule_id(R0, C1, C2, ...), rule intervals
                 intervals = rule_to_dict(explanations[n]['rule'], ds.descriptor)
                 f.write(f'{row["id"]},R0,{n},{intervals_to_str(intervals)},{explanations[n]["rule"]["consequence"]["val"]}\n')
+                print(intervals_to_str(intervals))
                 for j, cr in enumerate(explanations[n]['counterfactuals']):
                     intervals = rule_to_dict(cr, ds.descriptor)
                     f.write(f'{row["id"]},C{j+1},{n},{intervals_to_str(intervals)},{cr["consequence"]["val"]}\n')
