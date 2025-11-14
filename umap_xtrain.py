@@ -1,3 +1,23 @@
+"""
+UMAP Dimensionality Reduction Utilities
+
+This module provides utilities for UMAP (Uniform Manifold Approximation and Projection)
+dimensionality reduction and visualization. It's used to create 2D projections of
+high-dimensional feature spaces for visualization of neighborhoods and decision boundaries.
+
+UMAP is particularly useful for:
+- Visualizing how synthetic neighborhoods relate to training data
+- Understanding feature space structure
+- Identifying cluster patterns in generated data
+
+Functions:
+    run_umap: Apply UMAP to reduce dimensionality
+    grid_search_umap: Test multiple UMAP parameter combinations
+
+The module uses Altair for visualization and supports parameter grid search
+to find optimal UMAP configurations for different datasets.
+"""
+
 import umap
 import umap.umap_ as umap
 import os
@@ -12,6 +32,29 @@ alt.data_transformers.enable('default', max_rows=None)
 
 
 def run_umap(data, labels, n_neighbors=5, min_dist=0.1, n_components=2, metric='euclidean'):
+    """
+    Apply UMAP dimensionality reduction to data.
+    
+    Creates a low-dimensional embedding (typically 2D) of high-dimensional data
+    using UMAP algorithm. This is useful for visualization and understanding
+    the structure of feature spaces.
+    
+    Args:
+        data: High-dimensional data array (n_samples, n_features)
+        labels: Class labels for each sample (used for visualization)
+        n_neighbors: Number of neighbors for UMAP (default 5)
+                    - Smaller values preserve local structure
+                    - Larger values preserve global structure
+        min_dist: Minimum distance between points in embedding (default 0.1)
+                 - Smaller values create tighter clusters
+                 - Larger values preserve more global structure
+        n_components: Number of dimensions in embedding (default 2)
+        metric: Distance metric to use (default 'euclidean')
+               - Options: 'euclidean', 'manhattan', 'chebyshev', 'cosine', etc.
+    
+    Returns:
+        Array: Low-dimensional embedding of the data (n_samples, n_components)
+    """
     reducer= umap.UMAP(
         n_neighbors=n_neighbors,
         min_dist=min_dist,
@@ -23,6 +66,42 @@ def run_umap(data, labels, n_neighbors=5, min_dist=0.1, n_components=2, metric='
 
 
 def grid_search_umap(X_train, neigh_arrays, labels, min_dists, metrics): #n_neighbors_values
+    """
+    Perform grid search over UMAP parameters for multiple datasets.
+    
+    This function helps find optimal UMAP parameters by testing multiple
+    combinations of min_dist and metric on combined training and neighborhood data.
+    It's particularly useful for visualizing how different neighborhoods compare
+    to the training data.
+    
+    The function combines multiple datasets (training + neighborhoods), applies
+    UMAP with different parameter combinations, and returns results in a format
+    suitable for visualization with Altair.
+    
+    Args:
+        X_train: Training data array
+        neigh_arrays: List of neighborhood data arrays to compare
+        labels: Optional list of dataset names for each array
+                If None, uses generic names 'Dataset 0', 'Dataset 1', etc.
+        min_dists: List of min_dist values to test
+        metrics: List of distance metrics to test
+    
+    Returns:
+        DataFrame: Results with columns ['x', 'y', 'label', 'metric', 'min_dist']
+                  - x, y: UMAP embedding coordinates
+                  - label: Dataset identifier (0 for training, 1+ for neighborhoods)
+                  - metric: Distance metric used
+                  - min_dist: Min distance parameter used
+                  
+    Example:
+        >>> results = grid_search_umap(
+        ...     X_train, 
+        ...     [random_neigh, genetic_neigh], 
+        ...     ['Train', 'Random', 'Genetic'],
+        ...     [0.1, 0.3],
+        ...     ['euclidean', 'chebyshev']
+        ... )
+    """
     if labels is None:
         labels = ['Dataset {}'.format(i) for i in range(len(neigh_arrays) + 1)]
 

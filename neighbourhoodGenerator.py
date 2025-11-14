@@ -1,11 +1,57 @@
+"""
+Simple Neighborhood Generator Example
+
+This module demonstrates a basic neighborhood generator implementation that
+perturbs vessel trajectory features while maintaining domain constraints.
+
+This is a standalone example/test script, not used in the main application.
+It shows how to create synthetic vessel instances with realistic constraints
+such as speed quartile ordering and log-transformed features.
+
+Classes:
+    NewGen: Basic perturbation generator for vessel features
+
+Example usage is included at the bottom of the file.
+"""
+
 import random
 import math
 
 class NewGen:
+    """
+    Simple neighborhood generator for vessel trajectory features.
+    
+    This class generates perturbed instances of vessel data by randomly
+    sampling from predefined ranges while maintaining constraints like
+    speed quartile ordering.
+    
+    Attributes:
+        gen_data: List of generated perturbed arrays
+    """
+    
     def __init__(self):
+        """Initialize the generator with empty gen_data."""
         self.gen_data = None
  
     def perturb(self, x, num_instances):
+        """
+        Generate perturbed versions of a vessel instance.
+        
+        Creates synthetic instances by:
+        1. Ensuring speed quartile ordering (min < Q1 < median < Q3)
+        2. Sampling other features from their observed ranges
+        3. Handling log-transformed features appropriately
+        
+        Note: This is a simplified version. The main application uses more
+        sophisticated generators with better constraint enforcement.
+        
+        Args:
+            x: Original instance array to perturb
+            num_instances: Number of perturbed instances to generate
+            
+        Returns:
+            List of perturbed instance arrays
+        """
         perturbed_arrays = []
         for _ in range(num_instances):
             perturbed_arr = x[:]
