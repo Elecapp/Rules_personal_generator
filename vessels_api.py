@@ -1,3 +1,32 @@
+"""
+FastAPI Application Entry Point
+
+This module defines the main FastAPI application that serves both the web interface
+and the REST API for COVID-19 and vessel movement explanations.
+
+The application structure:
+- Main app: Serves the Vue.js static frontend
+- API app: RESTful API mounted at /api with COVID and vessel endpoints
+- CORS: Configured to allow cross-origin requests for development
+
+Features:
+- Serves compiled Vue.js frontend from cvd_vue/dist
+- Mounts REST API at /api endpoint
+- Includes routers for COVID-19 and vessel explanations
+- CORS middleware for web client access
+
+Endpoints:
+- GET /: Root endpoint (redirects to static frontend)
+- /api/covid/*: COVID-19 explanation endpoints
+- /api/vessels/*: Vessel movement explanation endpoints
+- /api/docs: Auto-generated API documentation (Swagger UI)
+- /api/redoc: Alternative API documentation (ReDoc)
+
+Usage:
+    Run with uvicorn:
+    $ uvicorn vessels_api:app --host 0.0.0.0 --port 8000 --reload
+"""
+
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -38,5 +67,11 @@ api_app.include_router(covid_router)
 
 @app.get("/")
 async def root():
+    """
+    Root endpoint returning a welcome message.
+    
+    Returns:
+        dict: Welcome message
+    """
     return {"message": "Welcome to the Vessels API"}
 

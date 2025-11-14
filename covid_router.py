@@ -1,3 +1,35 @@
+"""
+COVID-19 Risk Explanation API Router
+
+This module implements the FastAPI router for COVID-19 risk classification
+explanations. It provides endpoints for generating rule-based explanations
+using the LORE framework with various neighborhood generation strategies.
+
+The router handles:
+- Loading and caching the trained COVID-19 model
+- Creating UMAP projections for visualization
+- Processing explanation requests with different neighborhood types
+- Converting explanations to API-friendly formats
+- Generating interactive Vega-Lite visualizations
+
+Endpoints:
+    POST /covid/explain: Generate explanation for a COVID-19 risk instance
+    POST /covid/explainBatch: Generate explanations for multiple instances
+
+Neighborhood types supported:
+    - train: Use training data as neighborhood
+    - random: Random generation
+    - custom: Custom probability-weighted generator
+    - genetic: Genetic algorithm-based
+    - gpt: LLM-inspired with transition probabilities
+
+The module initializes on import by:
+1. Loading COVID-19 data
+2. Loading or training the Random Forest model
+3. Creating UMAP reducer for visualization
+4. Setting up the LORE explanation framework
+"""
+
 import io
 import json
 import logging
@@ -32,6 +64,7 @@ logging.getLogger('numba').setLevel(logging.ERROR)
 
 
 
+# Load COVID-19 data and model (or train if not cached)
 res = load_data_from_csv()
 model_pkl_file = 'models/model.pkl'
 if os.path.exists(model_pkl_file):
@@ -40,6 +73,7 @@ else:
     model = create_and_train_model(res)
     joblib.dump(model, model_pkl_file)
 
+# Create UMAP reducer for visualization
 transformer = model.named_steps['columntransformer']
 reducer = Pipeline(steps=[
     ('columntransformer', transformer),
@@ -47,14 +81,17 @@ reducer = Pipeline(steps=[
 ])
 
 
+# Initialize LORE dataset and black-box wrapper
 data = TabularDataset(data=res, class_name='Class_label')
 bbox = sklearn_classifier_bbox.sklearnBBox(model)
 
 
 
+# Fit the UMAP reducer
 reducer.fit(res[res.columns[:-1]])
 
 
+# Create FastAPI router for COVID endpoints
 covid_router = fastapi.APIRouter(
     prefix="/covid",
     tags=["COVID"],
@@ -62,6 +99,19 @@ covid_router = fastapi.APIRouter(
 
 
 def dataframe_to_vega(df):
+    """
+    Convert DataFrame to Vega-Lite interactive visualization specification.
+    
+    Creates an interactive scatter plot showing UMAP projections of the instance,
+    training data, and generated neighborhoods. The visualization allows zooming
+    and panning to explore the feature space.
+    
+    Args:
+        df: DataFrame with columns ['umap1', 'umap2', 'neighborhood_type', 'prediction']
+    
+    Returns:
+        dict: Vega-Lite specification for the visualization
+    """
     attributes = ['Week6_Covid', 'Week5_Covid', 'Week4_Covid', 'Week3_Covid', 'Week2_Covid', 'Week6_Mobility',
           'Week5_Mobility', 'Week4_Mobility', 'Week3_Mobility', 'Week2_Mobility', 'Week1_Mobility', 'Days_passed']
     # create a nominal colro scale for the neighborhood types

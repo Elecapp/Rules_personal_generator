@@ -1,3 +1,28 @@
+"""
+COVID-19 Batch Explanation Processing
+
+This module provides batch processing capabilities for generating COVID-19 risk
+explanations. It's designed to process multiple instances from a CSV file and
+generate explanations using various neighborhood generation strategies.
+
+The module is useful for:
+- Evaluating explanation quality across many instances
+- Comparing different neighborhood generation strategies
+- Creating datasets of explanations for analysis
+- Benchmarking explanation generation performance
+
+Functions:
+    rule_to_dict: Convert LORE rule to dictionary of feature intervals
+    intervals_to_str: Convert interval dictionary to string representation
+    main: Async main function for batch processing
+
+Usage:
+    python covid_batch_explanations.py
+    
+The script processes instances from 'datasets/selected_train_instances_15.csv'
+and generates explanations using multiple neighborhood types.
+"""
+
 import pandas as pd
 import numpy as np
 
@@ -6,15 +31,25 @@ from covid_router import explain, CovidEvent, CovidRequest, res
 
 def rule_to_dict(rule, descriptor):
     """
-    Converts a rule to a dictionary where each key is one of the features of the domain dataset and the value is the
-    interval of definition of the rule.
-
-    Parameters:
-        explanation: a rule object from lore
-        descriptor: a descriptor object from lore
-
+    Convert a LORE rule to a dictionary of feature intervals.
+    
+    Transforms a rule from the LORE explanation into a dictionary where
+    each key is a feature name and the value is a [min, max] interval
+    defining the rule's conditions for that feature.
+    
+    Args:
+        rule: Rule object from LORE with 'premises' containing conditions
+        descriptor: Dataset descriptor with categorical and numeric features
+    
     Returns:
-
+        dict: Mapping of feature names to [lower_bound, upper_bound] intervals
+              Unbounded intervals use -np.inf or np.inf
+              
+    Example:
+        >>> rule = {'premises': [{'attr': 'age', 'op': '>', 'val': 30}, 
+        ...                      {'attr': 'age', 'op': '<=', 'val': 50}]}
+        >>> result = rule_to_dict(rule, descriptor)
+        >>> result['age']  # [30, 50]
     """
     descr_features = []
     for cf in descriptor['categorical']:
@@ -39,9 +74,21 @@ def rule_to_dict(rule, descriptor):
 
 def intervals_to_str(intervals):
     """
-    receives a dictionary of intervals and returns a string representation of the intervals
-    The string output for each feature has the form: feature_name: {lower_bound, upper_bound}. The features are separated
-    by a semicolon.
+    Convert feature intervals dictionary to string representation.
+    
+    Creates a human-readable string representation of rule intervals
+    in the format: "feature1: {lower, upper}; feature2: {lower, upper}"
+    
+    Args:
+        intervals: Dictionary mapping feature names to [min, max] intervals
+    
+    Returns:
+        str: Semicolon-separated string of interval representations
+        
+    Example:
+        >>> intervals = {'age': [30, 50], 'income': [40000, 80000]}
+        >>> intervals_to_str(intervals)
+        'age: {30: 50}; income: {40000: 80000}'
     """
     str_intervals = []
     for f in intervals:
@@ -52,6 +99,26 @@ def intervals_to_str(intervals):
 
 
 async def main():
+    """
+    Main batch processing function for COVID-19 explanations.
+    
+    Processes multiple COVID-19 instances from a CSV file and generates
+    explanations using various neighborhood generation strategies. The
+    function demonstrates how to:
+    1. Load instances from CSV
+    2. Create CovidEvent and CovidRequest objects
+    3. Generate explanations for multiple neighborhood types
+    4. Extract and format rule intervals
+    
+    The output includes:
+    - Instance ID
+    - Predicted class
+    - Neighborhood type
+    - Rule intervals for each feature
+    
+    Note: Currently processes only the first instance (break after first).
+          Remove the break statement to process all instances.
+    """
     df = pd.read_csv('datasets/selected_train_instances_15.csv', sep=';')
 
     print(df.columns)

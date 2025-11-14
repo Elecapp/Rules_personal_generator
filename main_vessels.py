@@ -1,3 +1,32 @@
+"""
+Vessel Movement Classification and Explanation Module
+
+This module implements machine learning model training and explanation generation
+for vessel movement pattern classification. It uses Random Forest classification
+with various neighborhood generation strategies including custom constraint-based
+and LLM-inspired generators.
+
+Features:
+    - Data loading and preprocessing for vessel trajectory features
+    - Random Forest classifier with standard scaling
+    - Custom neighborhood generators respecting domain constraints
+    - Decision tree-based feature importance analysis
+    - LLM-inspired generator with realistic constraint enforcement
+    - UMAP dimensionality reduction for visualization
+
+Classes:
+    GenerateDecisionTrees: Creates binary decision trees for each target class
+    VesselsGenerator: Custom neighborhood generator using feature importance
+    GeneticVesselsGenerator: Genetic algorithm-based neighborhood generator
+    VesselsLLMGenerator: LLM-inspired generator with constraint enforcement
+
+Functions:
+    load_data_from_csv: Load and preprocess vessel movement dataset
+    create_and_train_model: Build and train Random Forest classifier
+    generate_neighborhoods: Generate synthetic neighborhoods for explanation
+    neighborhood_type_to_generators: Map neighborhood types to generator classes
+"""
+
 import time
 
 import pandas as pd
@@ -42,12 +71,45 @@ alt.data_transformers.enable('default', max_rows=None)
 
 
 class GenerateDecisionTrees:
+    """
+    Generate binary decision tree classifiers for each target class.
+    
+    This class creates one-vs-all decision tree classifiers for multi-class
+    classification problems. Each tree is trained to distinguish one class
+    from all others, enabling feature importance analysis per class.
+    
+    Attributes:
+        test_size: Fraction of data to use for testing (default 0.3)
+        random_state: Random seed for reproducibility (default 42)
+        classifiers: Dictionary mapping class labels to trained decision trees
+    """
+    
     def __init__(self, test_size=0.3, random_state=42):
+        """
+        Initialize the decision tree generator.
+        
+        Args:
+            test_size: Proportion of dataset for testing (default 0.3)
+            random_state: Random seed for reproducibility (default 42)
+        """
         self.random_state = random_state
         self.test_size = test_size
         self.classifiers = {}
 
-    def decision_trees(self,X_feat, y):
+    def decision_trees(self, X_feat, y):
+        """
+        Train binary decision trees for each class.
+        
+        Creates one decision tree per unique class label using a one-vs-all
+        approach. Each tree distinguishes instances of one class from all others.
+        
+        Args:
+            X_feat: Feature matrix
+            y: Target labels
+            
+        Returns:
+            Dictionary mapping class labels to trained DecisionTreeClassifier objects
+        """
         self.classifiers = {}
         for target_class in np.unique(y):
             binary_y = (y == target_class).astype(int)
@@ -63,7 +125,44 @@ class GenerateDecisionTrees:
 
 
 class VesselsGenerator(NeighborhoodGenerator):
-    def __init__(self, bbox: AbstractBBox, dataset: Dataset, encoder: EncDec, X_feat, classifiers: dict, prob_of_mutation: float, ocr=0.1 ):
+    """
+    Custom neighborhood generator for vessel movement data.
+    
+    This generator creates synthetic instances by identifying features that
+    influence the prediction (using decision tree paths) and perturbing those
+    features while respecting domain constraints (e.g., speed quartile ordering).
+    
+    The generator:
+    1. Uses decision trees to identify influential features for the predicted class
+    2. Adds Gaussian noise to features based on their IQR
+    3. Enforces speed quartile constraints (min <= Q1 <= median <= Q3)
+    4. Applies special handling for log-transformed features
+    
+    Attributes:
+        bbox: Black-box classifier to explain
+        dataset: Dataset object with feature information
+        encoder: Encoder/decoder for data transformation
+        X_feat: Training feature matrix (DataFrame) with column names
+        classifiers: Dictionary of decision trees for each class
+        prob_of_mutation: Probability of mutating non-influential features
+        ocr: Outlier check ratio
+        neighborhood: Generated neighborhood instances
+        preprocess: Preprocessing pipeline from the black-box model
+    """
+    
+    def __init__(self, bbox: AbstractBBox, dataset: Dataset, encoder: EncDec, X_feat, classifiers: dict, prob_of_mutation: float, ocr=0.1):
+        """
+        Initialize the vessels neighborhood generator.
+        
+        Args:
+            bbox: Black-box classifier model
+            dataset: Dataset object with feature metadata
+            encoder: Encoder/decoder for data transformation
+            X_feat: Training features as DataFrame (needed for column names)
+            classifiers: Dictionary of decision trees per class
+            prob_of_mutation: Probability of mutating non-influential features
+            ocr: Outlier check ratio for filtering (default 0.1)
+        """
         super().__init__(bbox, dataset, encoder, ocr)
         self.neighborhood = None
         self.preprocess = bbox.bbox.named_steps.get('columntransformer')
@@ -73,7 +172,27 @@ class VesselsGenerator(NeighborhoodGenerator):
         self.prob_of_mutation = prob_of_mutation
 
 
-    def generate(self, x, num_instances:int=10000, descriptor: dict=None, encoder=None, list=None):
+    def generate(self, x, num_instances: int = 10000, descriptor: dict = None, encoder=None, list=None):
+        """
+        Generate a neighborhood of synthetic vessel movement instances.
+        
+        This method creates new instances by:
+        1. Predicting the class for the input instance
+        2. Finding influential features from the decision tree path
+        3. Perturbing features with Gaussian noise scaled by IQR
+        4. Enforcing speed quartile ordering constraints
+        5. Applying special transformation for log features
+        
+        Args:
+            x: Instance to generate neighborhood around
+            num_instances: Number of synthetic instances to generate (default 10000)
+            descriptor: Dictionary with feature metadata (min, max, quartiles)
+            encoder: Encoder/decoder for transformations
+            list: Not used, for interface compatibility
+            
+        Returns:
+            Array of generated neighborhood instances
+        """
         perturbed_list = []
         perturbed_list.append(x.copy())
 
@@ -84,6 +203,22 @@ class VesselsGenerator(NeighborhoodGenerator):
         return self.neighborhood
 
     def perturbate(self, instance):
+        """
+        Perturb a single vessel instance using feature importance.
+        
+        This method:
+        1. Predicts the class and retrieves corresponding decision tree
+        2. Extracts decision path to identify influential features
+        3. Adds Gaussian noise (scaled by IQR) to all features
+        4. Enforces speed quartile constraints (min <= Q1 <= median <= Q3)
+        5. Mutates influential features and randomly selected non-influential features
+        
+        Args:
+            instance: Instance array to perturb
+            
+        Returns:
+            Perturbed instance array
+        """
         descriptor = self.dataset.descriptor
         class_label = self.bbox.predict([instance])[0]
         chosen_dt = self.classifiers[class_label]
@@ -139,7 +274,45 @@ class VesselsGenerator(NeighborhoodGenerator):
         return mask_indices_arr
 
 class VesselsLLMGenerator(NeighborhoodGenerator):
+    """
+    LLM-inspired neighborhood generator with comprehensive constraint enforcement.
+    
+    This advanced generator creates realistic synthetic vessel instances by:
+    1. Applying controlled perturbations to features
+    2. Enforcing domain-specific constraints (speed ordering, value ranges)
+    3. Respecting physical relationships between features
+    4. Using proper transformations for log-scale features
+    
+    The generator is "LLM-inspired" in that it follows learned patterns and rules
+    to ensure generated data is realistic and respects domain knowledge.
+    
+    Key constraints enforced:
+    - Speed quartile ordering: min <= Q1 <= median <= Q3 <= max
+    - Positive curvature values (in log space)
+    - Valid angle and distance ranges
+    - Interaction constraints (e.g., high speed + high curvature relationships)
+    
+    Attributes:
+        bbox: Black-box classifier to explain
+        dataset: Dataset object with feature information
+        encoder: Encoder/decoder for data transformation
+        perturbation_scale: Scale factor for perturbations (default 0.05)
+        feature_names: List of vessel feature names in order
+        constraints: Dictionary defining valid ranges and relationships
+        log_features: List of features in log10 scale
+        neighborhood: Generated neighborhood instances
+    """
+    
     def __init__(self, bbox: AbstractBBox, dataset: Dataset, encoder: EncDec, perturbation_scale=0.05):
+        """
+        Initialize the LLM-inspired vessel generator.
+        
+        Args:
+            bbox: Black-box classifier model
+            dataset: Dataset object with feature metadata
+            encoder: Encoder/decoder for data transformation
+            perturbation_scale: Scale of perturbations to apply (default 0.05)
+        """
         super().__init__(bbox, dataset, encoder, ocr=0.1)
         self.neighborhood = None
         self.perturbation_scale = perturbation_scale
@@ -176,18 +349,34 @@ class VesselsLLMGenerator(NeighborhoodGenerator):
         ]
 
     def _clamp(self, value, min_val, max_val):
-        """Clamps a value within a specified range."""
+        """
+        Clamp a value within a specified range.
+        
+        Args:
+            value: Value to clamp
+            min_val: Minimum allowed value
+            max_val: Maximum allowed value
+            
+        Returns:
+            Clamped value within [min_val, max_val]
+        """
         return max(min_val, min(value, max_val))
 
     def _apply_constraints(self, instance):
         """
-        Applies and enforces all defined realistic constraints on a data instance.
-
+        Apply and enforce all domain-specific constraints on a vessel instance.
+        
+        This method ensures the generated instance respects:
+        - Speed quartile ordering (min <= Q1 <= median <= Q3)
+        - Valid ranges for all features
+        - Physical constraints (non-negative speeds, valid angles)
+        - Distance constraints (min dist <= max dist)
+        
         Args:
-            instance (np.array): A dictionary representing a single data instance.
-
+            instance: Dictionary representing a single vessel data instance
+        
         Returns:
-            dict: The instance with applied constraints.
+            Dictionary with enforced constraints
         """
         # Ensure speed quartile relationships
         instance["SpeedQ1"] = self._clamp(instance["SpeedQ1"], instance["SpeedMinimum"], float('inf'))
@@ -590,6 +779,26 @@ class BaselineTrainingGenerator(NeighborhoodGenerator):
         return self.neighborhood
 
 def load_data_from_csv():
+    """
+    Load and preprocess the vessel movement dataset from CSV file.
+    
+    This function:
+    1. Defines human-readable class names for vessel movement patterns
+    2. Loads the dataset from datasets/final_df_addedfeat.csv
+    3. Selects the vessel features defined in vessels_utils
+    4. Ensures class labels are string type for consistency
+    
+    Class mapping:
+        '1': Straight trajectory
+        '2': Curved trajectory
+        '3': Trawling pattern
+        '4': Port connected
+        '5': Near port
+        '6': Anchored
+    
+    Returns:
+        DataFrame: Vessel movement dataset with selected features and class labels
+    """
     class_names = {
         '1': 'Straight',
         '2': 'Curved',
@@ -607,6 +816,27 @@ def load_data_from_csv():
     return df[features]
 
 def create_and_train_model(df):
+    """
+    Create and train a Random Forest classifier for vessel movement classification.
+    
+    This function:
+    1. Separates features from class labels
+    2. Creates preprocessing pipeline:
+       - Ordinal encoding for categorical features (if any)
+       - Standard scaling for all 9 numerical vessel features
+    3. Trains a Random Forest classifier with 100 estimators
+    4. Evaluates model performance on test set
+    5. Returns the trained model and training data
+    
+    Args:
+        df: Preprocessed DataFrame with vessel features and class labels
+        
+    Returns:
+        tuple: (trained_model, training_features, training_labels)
+            - trained_model: Scikit-learn pipeline with preprocessor and classifier
+            - training_features: DataFrame of training set features
+            - training_labels: Array of training set labels
+    """
 
     label = 'class N'
     features = df.columns[:-1]
@@ -642,7 +872,33 @@ def create_and_train_model(df):
     print('Model score: ', model.score(data_test, target_test))
     return model, data_train, target_train
 
-def neighborhood_type_to_generators(neighborhood_types:[str], bbox, ds, encoder, data_train, target_train):
+def neighborhood_type_to_generators(neighborhood_types: [str], bbox, ds, encoder, data_train, target_train):
+    """
+    Create neighborhood generators based on requested types.
+    
+    This factory function instantiates the appropriate neighborhood generator
+    classes based on the requested types. It handles initialization of generators
+    that require additional setup (e.g., decision tree classifiers for custom generators).
+    
+    Available generator types:
+    - 'random': Uniform random sampling from feature space
+    - 'custom': Feature importance-based with decision tree guidance
+    - 'genetic': Genetic algorithm-based generation
+    - 'custom_genetic': Genetic algorithm with feature importance
+    - 'llm': LLM-inspired with constraint enforcement
+    - 'train': Uses training data as neighborhood (nearest neighbors)
+    
+    Args:
+        neighborhood_types: List of generator type strings
+        bbox: Black-box classifier to explain
+        ds: Dataset object with feature metadata
+        encoder: Encoder/decoder for data transformation
+        data_train: Training feature data (DataFrame)
+        target_train: Training labels
+        
+    Returns:
+        List of tuples: [(generator_name, generator_instance), ...]
+    """
     generators = []
     if 'random' in neighborhood_types:
         random_n_generator = RandomGenerator(bbox, ds, encoder)

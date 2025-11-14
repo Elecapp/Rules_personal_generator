@@ -1,3 +1,27 @@
+"""
+COVID-19 Risk Classification and Explanation Module
+
+This module implements machine learning model training and explanation generation
+for COVID-19 risk assessment. It uses Random Forest classification with various
+neighborhood generation strategies to create interpretable rule-based explanations.
+
+Features:
+    - Data loading and preprocessing for COVID-19 time-series data
+    - Random Forest classifier with ordinal encoding
+    - Multiple neighborhood generators (random, genetic, custom, LLM-inspired)
+    - LORE-based rule generation for model explanations
+    - UMAP dimensionality reduction for visualization
+
+Classes:
+    IdentityEncoder: Pass-through encoder for data transformation
+    ProbabilitiesWeightBasedGenerator: Weighted probability-based neighborhood generator
+    GPTCovidGenerator: Transition probability-based generator inspired by temporal patterns
+
+Functions:
+    load_data_from_csv: Load and preprocess COVID-19 dataset
+    create_and_train_model: Build and train Random Forest classifier
+"""
+
 import os
 import time
 
@@ -44,42 +68,126 @@ alt.data_transformers.enable('default', max_rows=None)
 
 class IdentityEncoder(EncDec):
     """
-    It provides an interface to access Identity encoding functions.
+    Identity encoder that passes data through without transformation.
+    
+    This encoder implements the EncDec interface but performs no actual encoding
+    or decoding operations. It's useful when the data is already in the correct
+    format and no transformation is needed.
+    
+    Attributes:
+        dataset_descriptor: Metadata about the dataset features and types
     """
 
     def __init__(self, dataset_descriptor):
+        """
+        Initialize the identity encoder.
+        
+        Args:
+            dataset_descriptor: Dictionary containing dataset metadata
+        """
         super().__init__(dataset_descriptor)
 
     def encode(self, x: np.array) -> np.array:
         """
-        It applies the encoder to the input features
+        Pass-through encoding that returns the input unchanged.
 
-        :param [Numpy array] x: Array to encode
-        :return [Numpy array]: Encoded array
+        Args:
+            x: Input array to encode
+
+        Returns:
+            The input array unchanged
         """
         return x
 
     def get_encoded_features(self):
         """
-        Provides a dictionary with the new encoded features name and the new index
-        :return:
+        Get the mapping of encoded feature names to indices.
+        
+        Returns:
+            Dictionary mapping feature names to their encoded indices
         """
         return self.encoded_features
 
     def decode(self, x: np.array) -> np.array:
+        """
+        Pass-through decoding that returns the input unchanged.
+        
+        Args:
+            x: Input array to decode
+            
+        Returns:
+            The input array unchanged
+        """
         return x
 
     def decode_target_class(self, x: np.array):
+        """
+        Decode target class labels (pass-through).
+        
+        Args:
+            x: Target class array
+            
+        Returns:
+            The input array unchanged
+        """
         return x
 
 class ProbabilitiesWeightBasedGenerator(NeighborhoodGenerator):
+    """
+    Neighborhood generator using weighted probability distributions.
+    
+    This generator creates synthetic instances by sampling from probability
+    distributions derived from the data. It uses transition probabilities
+    for COVID-19 severity levels and mobility levels to ensure realistic
+    synthetic data generation.
+    
+    The transition weights are based on observed temporal patterns in the data,
+    making the generated neighborhoods more representative of realistic trajectories.
+    
+    Attributes:
+        bbox: Black-box classifier to be explained
+        dataset: Dataset object containing feature information
+        encoder: Encoder/decoder for data transformation
+        ocr: Outlier check ratio (default 0.1)
+        neighborhood: Generated neighborhood instances
+        preprocess: Preprocessing pipeline from the black-box model
+    """
 
     def __init__(self, bbox: AbstractBBox, dataset: Dataset, encoder: EncDec, ocr=0.1):
+        """
+        Initialize the probability-weighted neighborhood generator.
+        
+        Args:
+            bbox: Black-box classifier model
+            dataset: Dataset object with feature metadata
+            encoder: Encoder/decoder for data transformation
+            ocr: Outlier check ratio for filtering (default 0.1)
+        """
         super().__init__(bbox, dataset, encoder, ocr)
         self.neighborhood = None
         self.preprocess = bbox.bbox.named_steps.get('columntransformer')
 
     def generate(self, z: np.array, num_instances: int, descriptor: dict, encoder):
+        """
+        Generate synthetic neighborhood instances using weighted probabilities.
+        
+        This method creates new instances by:
+        1. Decoding the input instance
+        2. Sampling new values from weighted probability distributions
+        3. Encoding the generated instances
+        
+        The probability weights are based on transition matrices that capture
+        temporal patterns in COVID-19 severity and mobility data.
+        
+        Args:
+            z: Encoded instance to generate neighborhood around
+            num_instances: Number of synthetic instances to generate
+            descriptor: Dictionary with feature metadata
+            encoder: Encoder/decoder for transformations
+            
+        Returns:
+            Array of generated neighborhood instances in encoded space
+        """
         x = encoder.decode(z.reshape(1, -1))[0]
         z1 = self.preprocess.transform(x.reshape(1, -1))[0]
 
@@ -135,7 +243,40 @@ class ProbabilitiesWeightBasedGenerator(NeighborhoodGenerator):
 
 
 class GPTCovidGenerator(NeighborhoodGenerator):
+    """
+    LLM-inspired neighborhood generator using temporal transition probabilities.
+    
+    This generator mimics the behavior of a language model by using transition
+    probabilities learned from the sequential patterns in COVID-19 and mobility data.
+    It generates realistic temporal sequences by following observed state transitions.
+    
+    The transition dictionaries contain counts of observed transitions between
+    severity/mobility levels, converted to discrete probability distributions through
+    repeated sampling.
+    
+    Attributes:
+        bbox: Black-box classifier to be explained
+        dataset: Dataset object containing feature information
+        encoder: Encoder/decoder for data transformation
+        ocr: Outlier check ratio
+        preprocess: Preprocessing pipeline from the black-box model
+        covid_transitions: Dictionary mapping COVID levels to their transition distributions
+        mobility_transitions: Dictionary mapping mobility levels to their transition distributions
+    """
+
     def __init__(self, bbox: AbstractBBox, dataset: Dataset, encoder: EncDec, ocr=0.1):
+        """
+        Initialize the LLM-inspired generator with transition probabilities.
+        
+        The transition dictionaries are populated with observed state transitions
+        from the training data, enabling realistic sequence generation.
+        
+        Args:
+            bbox: Black-box classifier model
+            dataset: Dataset object with feature metadata
+            encoder: Encoder/decoder for data transformation
+            ocr: Outlier check ratio for filtering (default 0.1)
+        """
         super().__init__(bbox, dataset, encoder, ocr)
         self.preprocess = bbox.bbox.named_steps.get('columntransformer')
         self.covid_transitions = {
@@ -153,6 +294,20 @@ class GPTCovidGenerator(NeighborhoodGenerator):
         }
 
     def perturb_one_instance(self, z):
+        """
+        Perturb a single instance using transition probabilities.
+        
+        This method generates a new instance by:
+        1. Randomly adjusting the time component (weeks passed)
+        2. Sampling new COVID-19 levels based on transition probabilities
+        3. Sampling new mobility levels based on transition probabilities
+        
+        Args:
+            z: Encoded instance to perturb
+            
+        Returns:
+            New perturbed instance in decoded space
+        """
         x = self.encoder.decode(z.reshape(1, -1))[0]
 
         new_instance = x.copy()
@@ -173,6 +328,18 @@ class GPTCovidGenerator(NeighborhoodGenerator):
         return new_instance
 
     def generate(self, z: np.array, num_instances: int, descriptor: dict, encoder):
+        """
+        Generate a neighborhood of instances using transition-based perturbations.
+        
+        Args:
+            z: Encoded instance to generate neighborhood around
+            num_instances: Number of synthetic instances to generate
+            descriptor: Dictionary with feature metadata
+            encoder: Encoder/decoder for transformations
+            
+        Returns:
+            Array of generated neighborhood instances in encoded space
+        """
         instances = []
         for _ in range(num_instances):
             new_x = self.perturb_one_instance(z)
@@ -183,6 +350,18 @@ class GPTCovidGenerator(NeighborhoodGenerator):
         return z_instances
 
 def load_data_from_csv():
+    """
+    Load and preprocess the COVID-19 dataset from CSV file.
+    
+    This function:
+    1. Loads the dataset from datasets/Final_data.csv
+    2. Selects relevant features (COVID levels, mobility levels, days passed)
+    3. Removes rows where all features are missing but label exists
+    4. Fills remaining missing values with "NONE"
+    
+    Returns:
+        DataFrame: Preprocessed COVID-19 dataset with selected features
+    """
     df = pd.read_csv("datasets/Final_data.csv")
 
     df = df.loc[:,
@@ -198,6 +377,22 @@ def load_data_from_csv():
 
 
 def create_and_train_model(result_df):
+    """
+    Create and train a Random Forest classifier for COVID-19 risk prediction.
+    
+    This function:
+    1. Separates features and target labels
+    2. Creates preprocessing pipeline with ordinal encoding for categorical features
+    3. Applies standard scaling to numerical features (Days_passed)
+    4. Trains a Random Forest classifier with 100 estimators
+    5. Evaluates model performance on test set
+    
+    Args:
+        result_df: Preprocessed DataFrame with COVID-19 features and labels
+        
+    Returns:
+        Pipeline: Trained scikit-learn pipeline containing preprocessor and classifier
+    """
     y = result_df["Class_label"].values
     X_feat = result_df.loc[:,'Week6_Covid':'Days_passed'].values
     covid_categories = ['NONE', 'c1', 'c2', 'c3', 'c4']

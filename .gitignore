@@ -2,3 +2,15 @@
 /LORE_sa/
 /datasets/
 /models/model.pkl
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
